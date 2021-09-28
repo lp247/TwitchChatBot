@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     app_authorization.insert("token_type", "json");
 
     let http_client = reqwest::Client::new();
-    let auth_endpoint = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&grant_type=client_credentials", env::var("CLIENT_ID").unwrap(), env::var("CLIENT_SECRET").unwrap());
+    let auth_endpoint = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&grant_type=client_credentials", env::var("TWITCH_AUTH_CLIENT_ID").unwrap(), env::var("TWITCH_AUTH_CLIENT_SECRET").unwrap());
     let access_token = http_client.post(auth_endpoint).send().await?.json::<AuthorizationData>().await.unwrap().access_token;
 
     // let chat_client = ClientBuilder::new(CONNECTION)
