@@ -1,47 +1,56 @@
 extern crate websocket;
 
 use reqwest;
-use std::{collections::HashMap, env};
+use std::{env, thread, time};
 use serde::Deserialize;
+use websocket::client::ClientBuilder;
+use websocket::Message;
+use std::convert::Infallible;
+use std::net::SocketAddr;
+use hyper::{Body, Request, Response, Server};
+use hyper::service::{make_service_fn, service_fn};
+use futures::join;
 
 const TWITCH_CHAT_SERVER: &'static str = "ws://irc-ws.chat.twitch.tv:80";
 
-#[derive(Deserialize)]
-struct AuthorizationData {
-    access_token: String,
-    expires_in: u32,
-    token_type: String,
+// #[derive(Deserialize)]
+// struct AuthorizationData {
+//     access_token: String,
+//     expires_in: u32,
+//     token_type: String,
+// }
+
+async fn hello_world(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
+    Ok(Response::new("Hello, World".into()))
+}
+
+async fn recv_msgs() {
+    let chat_client = ClientBuilder::new(TWITCH_CHAT_SERVER)
+        .unwrap()
+        .connect_insecure()
+        .unwrap();
+    let (mut receiver, mut sender) = chat_client.split().unwrap();
+    let message = Message::text("Some unknown command");
+    sender.send_message(&message);
+    for message in receiver.incoming_messages() {
+        println!("Recv: {:?}", message.unwrap());
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Connecting to {}", TWITCH_CHAT_SERVER);
+    let code_http_server_addr = SocketAddr::from(([127, 0, 0, 1], 3000));
 
-    let mut app_authorization = HashMap::new();
-    app_authorization.insert("access_token", "rust");
-    app_authorization.insert("expires_in", "json");
-    app_authorization.insert("refresh_token", "json");
-    app_authorization.insert("scope", "json");
-    app_authorization.insert("token_type", "json");
+    let make_svc = make_service_fn(|_conn| async {
+        Ok::<_, Infallible>(service_fn(hello_world))
+    });
 
-    let http_client = reqwest::Client::new();
-    let auth_endpoint = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&grant_type=client_credentials", env::var("TWITCH_AUTH_CLIENT_ID").unwrap(), env::var("TWITCH_AUTH_CLIENT_SECRET").unwrap());
-    let access_token = http_client.post(auth_endpoint).send().await?.json::<AuthorizationData>().await.unwrap().access_token;
+    let server = Server::bind(&code_http_server_addr).serve(make_svc);
 
-    // let chat_client = ClientBuilder::new(CONNECTION)
-    //     .unwrap()
-    //     .add_protocol("rust-websocket")
-    //     .connect_insecure()
-    //     .unwrap();
+    let recv_msgs_future = recv_msgs();
 
-    // println!("Successfully connected");
-
-    // let (_, mut sender) = client.split().unwrap();
-
-    // let message = Message::text("Some message");
-    // sender.send_message(&message);
-
-    // println!("Waiting for child threads to exit");
+    // join!(server);
+    join!(server, recv_msgs_future);
 
     Ok(())
 }
