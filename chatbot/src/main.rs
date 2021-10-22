@@ -1,66 +1,91 @@
 extern crate websocket;
 
 use reqwest;
-use serde::Deserialize;
-use std::convert::Infallible;
-use std::{env, thread};
-use warp::filters::query::query;
-use warp::Filter;
-use websocket::client::ClientBuilder;
-use websocket::Message;
 use serde_json::Value;
+use std::env;
+use tiny_http;
+use websocket::{client::ClientBuilder, Message};
 
-const TWITCH_CHAT_SERVER: &'static str = "ws://irc-ws.chat.twitch.tv:80";
-
-#[derive(Deserialize)]
-struct AuthorizationData {
-    access_token: String,
-    expires_in: u32,
-    token_type: String,
+struct TwitchChatProxy {
+    receiver: websocket::receiver::Reader<std::net::TcpStream>,
+    sender: websocket::sender::Writer<std::net::TcpStream>,
+    channel: String,
 }
 
-#[derive(Deserialize)]
-struct RequestQueryParams {
-    code: String,
-}
-
-async fn request_handler(params: RequestQueryParams) -> Result<impl warp::Reply, Infallible> {
-    let uri = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&code={}&grant_type=authorization_code&redirect_uri=https://localhost:3030", env::var("TWITCH_AUTH_CLIENT_ID").unwrap(), env::var("TWITCH_AUTH_CLIENT_SECRET").unwrap(), params.code);
-    let client = reqwest::Client::new();
-    let response = client.post(uri).send().await.unwrap();
-    let response_text = response.text().await.unwrap();
-    let json: Value = serde_json::from_str(&response_text).unwrap();
-    thread::spawn(move || {
-        let chat_client = ClientBuilder::new(TWITCH_CHAT_SERVER)
+impl TwitchChatProxy {
+    fn new(channel: &str) -> Self {
+        let chat_client = ClientBuilder::new("ws://irc-ws.chat.twitch.tv:80")
             .unwrap()
             .connect_insecure()
             .unwrap();
-        let (mut receiver, mut sender) = chat_client.split().unwrap();
-        let password_msg = Message::text(format!("PASS oauth:{}", json["access_token"].as_str().unwrap()));
-        let username_msg = Message::text(format!("NICK {}", env::var("TWITCH_CHAT_USER").unwrap()));
-        sender.send_message(&password_msg);
-        sender.send_message(&username_msg);
-        for message in receiver.incoming_messages() {
-            println!("Recv: {:?}", message.unwrap());
+        let (receiver, sender) = chat_client.split().unwrap();
+        Self {
+            receiver,
+            sender,
+            channel: String::from(channel),
         }
-    });
+    }
 
-    Ok(String::from("OK"))
+    fn get_code(&self) -> String {
+        let ssl_config = tiny_http::SslConfig {
+            certificate: include_bytes!("../certificates/cert.crt").to_vec(),
+            private_key: include_bytes!("../certificates/cert.key").to_vec(),
+        };
+        let server = tiny_http::Server::https("0.0.0.0:3030", ssl_config).unwrap();
+        let request: tiny_http::Request = server.recv().unwrap();
+        let request_url = request.url();
+        String::from(
+            request_url
+                .split("=")
+                .nth(1)
+                .unwrap()
+                .split("&")
+                .nth(0)
+                .unwrap(),
+        )
+    }
+
+    async fn get_access_token(&self, code: &str) -> String {
+        let uri = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&code={}&grant_type=authorization_code&redirect_uri=https://localhost:3030", env::var("TWITCH_AUTH_CLIENT_ID").unwrap(), env::var("TWITCH_AUTH_CLIENT_SECRET").unwrap(), code);
+        let client = reqwest::Client::new();
+        let response = client.post(uri).send().await.unwrap();
+        let response_text = response.text().await.unwrap();
+        let json: Value = serde_json::from_str(&response_text).unwrap();
+        String::from(json["access_token"].as_str().unwrap())
+    }
+
+    fn send_raw_message(&mut self, message: String) -> Result<(), websocket::WebSocketError> {
+        let message_obj = Message::text(message);
+        self.sender.send_message(&message_obj)
+    }
+
+    fn login(&mut self, access_token: &str) -> Result<(), websocket::WebSocketError> {
+        self.send_raw_message(format!("PASS oauth:{}", access_token))?;
+        self.send_raw_message(format!("NICK {}", env::var("TWITCH_CHAT_USER").unwrap()))?;
+        self.send_raw_message(format!("JOIN #{}", self.channel))
+    }
+
+    async fn initialize(&mut self) -> Result<(), websocket::WebSocketError> {
+        let code = self.get_code();
+        let access_token = self.get_access_token(code.as_str()).await;
+        self.login(access_token.as_str())?;
+        Ok(()) 
+        // let uri = format!("https://id.twitch.tv/oauth2/authorize?client_id={}&redirect_uri=https://localhost:3030&response_type=code&scope=chat:read%20chat:edit", env::var("TWITCH_AUTH_CLIENT_ID").unwrap());
+    }
+
+    fn send_message(&mut self, msg: &str) -> Result<(), websocket::WebSocketError> {
+        self.send_raw_message(format!("PRIVMSG #{} :{}", self.channel, msg))
+    }
+
+    fn get_receiver(&self) -> &websocket::receiver::Reader<std::net::TcpStream> {
+        &self.receiver
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let routes = warp::get()
-        .and(query::<RequestQueryParams>())
-        .and_then(request_handler);
-
-    warp::serve(routes)
-        .tls()
-        .cert_path("certificates/cert.crt")
-        .key_path("certificates/cert.key")
-        .run(([127, 0, 0, 1], 3030))
-        .await;
-    // let routes = warp::get().and(warp::path("/")).and(query::<RequestQueryParams>()).map(request_handler);
-
+    let mut proxy = TwitchChatProxy::new("captaincallback");
+    proxy.initialize().await;
+    proxy.send_message("Hello, World!");
     Ok(())
 }
