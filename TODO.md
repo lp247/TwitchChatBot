@@ -1,0 +1,5 @@
+- [X] Move code to separate modules
+- [ ] Ping-Pong mechanism
+- [ ] Implement modified MessageIterator
+- [ ] Implementing chat commands
+- [ ] Simplify and fully automate the process for getting the access token
