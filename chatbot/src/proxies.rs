@@ -9,12 +9,20 @@ static REDIRECT_URI: &str = "https://localhost:3030";
 
 #[derive(Error, Debug)]
 pub enum TwitchError {
-   #[error("request failed")] 
-   RequestFailed(#[from] reqwest::Error),
-   #[error("Internal server error")]
-   ServerError,
-   #[error("Network error")]
-   NetworkError
+    #[error("Request failed: {0:?}")] 
+    ReqwestError(reqwest::Error),
+    #[error("Bad request: {0:?}")]
+    BadRequest(String),
+    #[error("Parsing error: {0:?}")]
+    ReqwestParsingError(reqwest::Error),
+    #[error("Parsing error: {0:?}")]
+    SerdeJSONParsingError(serde_json::Error),
+    #[error("Missing response JSON field: {0:?}")]
+    MissingResponseJSONField(String, String),
+    #[error("Server error: {0:?}")]
+    ServerError(String),
+    #[error("Could not receive request: {0:?}")]
+    TinyHTTPReceiveError(std::io::Error),
 }
 
 pub type Result<T> = std::result::Result<T, TwitchError>;
@@ -30,7 +38,7 @@ impl AccessTokenDispenser {
     }
 
     fn extract_code_from_url<'a>(&'a self, request_url: &'a str) -> &'a str {
-        let code_start = REDIRECT_URI.len() + 7;
+        let code_start = request_url.find("code=").unwrap() + 5;
         let code_end = code_start + 30;
         &request_url[code_start..code_end]
     }
@@ -40,46 +48,59 @@ impl AccessTokenDispenser {
             certificate: include_bytes!("../certificates/cert.crt").to_vec(),
             private_key: include_bytes!("../certificates/cert.key").to_vec(),
         };
-        let server = tiny_http::Server::https("0.0.0.0:3030", ssl_config).map_err(|_| TwitchError::ServerError)?;
+        let server = tiny_http::Server::https("0.0.0.0:3030", ssl_config).map_err(|err| TwitchError::ServerError(format!("{:?}", err)))?;
         println!("Open link https://id.twitch.tv/oauth2/authorize?client_id=3rmzgtjlcc01fup7gjs99ua4uoof3g&redirect_uri=https://localhost:3030&response_type=code&scope=chat:read%20chat:edit");
-        let request: tiny_http::Request = server.recv().map_err(|_| TwitchError::NetworkError)?;
+        let request: tiny_http::Request = server.recv().map_err(|err| TwitchError::TinyHTTPReceiveError(err))?;
         let request_url = request.url();
         let code = self.extract_code_from_url(request_url);
         Ok(code.to_owned())
     }
 
-    async fn validate(&self) -> Result<bool> {
+    async fn access_token_is_valid(&self) -> Result<bool> {
+        if self.access_token.is_none() {
+            return Ok(false);
+        }
         let client = reqwest::Client::new();
+        let access_token = self.access_token.as_ref().unwrap();
         let validation_response = client
             .get(VALIDATION_URL)
-            .bearer_auth(self.access_token.as_ref().unwrap())
+            .bearer_auth(access_token)
             .send()
-            .await?;
-        if validation_response.status() == 200 {
-            return Ok(true);
+            .await
+            .map_err(|err| TwitchError::ReqwestError(err))?;
+        if validation_response.status() != 200 {
+            let response_text = validation_response.text().await.map_err(|err| TwitchError::ReqwestParsingError(err))?;
+            let response_json: Value = serde_json::from_str(&response_text).map_err(|err| TwitchError::SerdeJSONParsingError(err))?;
+            let response_message = response_json["message"].as_str().ok_or(TwitchError::MissingResponseJSONField("message".to_owned(), format!("{:?}", response_json)))?;
+            return Err(TwitchError::BadRequest(response_message.to_owned()));
         }
-        Ok(false)
+        Ok(true)
     }
 
     async fn renew(&mut self) -> Result<()> {
         let code = self.retrieve_code()?;
         let uri = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&code={}&grant_type=authorization_code&redirect_uri={}", env::var("TWITCH_AUTH_CLIENT_ID").unwrap(), env::var("TWITCH_AUTH_CLIENT_SECRET").unwrap(), code, REDIRECT_URI);
         let client = reqwest::Client::new();
-        let response = client.post(uri).send().await.unwrap();
-        let response_text = response.text().await.unwrap();
-        let json: Value = serde_json::from_str(&response_text).unwrap();
-        let access_token = json["access_token"].as_str().unwrap();
-        let refresh_token = json["refresh_token"].as_str().unwrap();
+        let response = client.post(uri).send().await.map_err(|err| TwitchError::ReqwestError(err))?;
+        let status = response.status();
+        let response_text = response.text().await.map_err(|err| TwitchError::ReqwestParsingError(err))?;
+        let json: Value = serde_json::from_str(&response_text).map_err(|err| TwitchError::SerdeJSONParsingError(err))?;
+        if status != 200 {
+            let message = json["message"].as_str().ok_or(TwitchError::MissingResponseJSONField("message".to_owned(), format!("{:?}", json)))?;
+            return Err(TwitchError::BadRequest(message.to_owned()));
+        }
+        let access_token = json["access_token"].as_str().ok_or(TwitchError::MissingResponseJSONField("access_token".to_owned(), format!("{:?}", json)))?;
+        let refresh_token = json["refresh_token"].as_str().ok_or(TwitchError::MissingResponseJSONField("refresh_token".to_owned(), format!("{:?}", json)))?;
         self.access_token = Some(access_token.to_owned());
         self.refresh_token = Some(refresh_token.to_owned());
         Ok(())
     }
 
     pub async fn get(&mut self) -> Result<&str> {
-        if self.access_token.is_none() || !self.validate().await? {
+        if !self.access_token_is_valid().await? {
             self.renew().await?;
         }
-        Ok(self.access_token.as_ref().unwrap())
+        Ok(self.access_token.as_ref().expect("Unexpectedly the access token is not set after renewal!"))
     }
 }
 
