@@ -4,6 +4,39 @@ use websocket::{client::ClientBuilder, Message, OwnedMessage};
 use reqwest;
 use thiserror::Error;
 
+#[derive(Debug, PartialEq)]
+pub struct MessageInfo {
+    pub user: String,
+    pub text: String,
+}
+
+#[derive(Debug, PartialEq)]
+enum MessageType {
+    PrivateMessage(MessageInfo),
+    PingMessage,
+}
+
+fn parse_message(raw_message: &str) -> Option<MessageType> {
+    let words = raw_message.split(" ").collect::<Vec<&str>>();
+    if *words.get(1)? == "PRIVMSG" {
+        let user = extract_user(raw_message)?;
+        let text = extract_text(raw_message)?;
+        let message_info = MessageInfo {user: user.to_owned(), text: text.to_owned()};
+        return Some(MessageType::PrivateMessage(message_info));
+    } else if *words.get(0)? == "PING" {
+        return Some(MessageType::PingMessage);
+    }
+    None
+}
+
+fn extract_user(raw_message: &str) -> Option<&str> {
+    raw_message.split("!").nth(0).map(|s | &s[1..])
+}
+
+fn extract_text(raw_message: &str) -> Option<&str> {
+    raw_message.split(":").nth(2)
+}
+
 static VALIDATION_URL: &str = "https://id.twitch.tv/oauth2/validate";
 static REDIRECT_URI: &str = "https://localhost:3030";
 
@@ -144,10 +177,23 @@ impl<'a> TwitchChatProxy {
         self.send_raw_message(format!("PRIVMSG #{} :{}", self.channel, msg))
     }
 
-    pub fn incoming_messages(&mut self) -> impl Iterator<Item = String> + '_ {
-        self.receiver.incoming_messages().filter_map(|message| match message { 
+    pub fn incoming_messages(&mut self) -> impl Iterator<Item = MessageInfo> + '_ {
+        let receiver = &mut self.receiver;
+        let sender = &mut self.sender;
+        receiver.incoming_messages().filter_map(move |message| match message { 
             Ok(m) => match m {
-                OwnedMessage::Text(t) => t.split(":").nth(2).map(String::from),
+                OwnedMessage::Text(t) => {
+                    let parsedMessage = parse_message(&t)?;
+                    match parsedMessage {
+                        MessageType::PrivateMessage(message_info) => Some(message_info),
+                        MessageType::PingMessage => {
+                            let message_obj = Message::text("PONG :tmi.twitch.tv".to_owned());
+                            sender.send_message(&message_obj);
+                            // self.send_raw_message("PONG :tmi.twitch.tv".to_owned());
+                            None
+                        }
+                    }
+                },
                 _ => return None,
             },
             Err(_) => return None,
@@ -157,13 +203,25 @@ impl<'a> TwitchChatProxy {
 
 #[cfg(test)]
 mod tests {
-    use crate::proxies::AccessTokenDispenser;
+    use super::*;
 
-    #[test]
+    #[test] 
     fn getting_code_out_of_url() {
         let atd = AccessTokenDispenser::new();
         let url = "https://localhost:3030/?code=y6gdw1g6vfi07y1otcpn5abfzb94n9&scope=chat%3Aread+chat%3Aedit";
         let code = "y6gdw1g6vfi07y1otcpn5abfzb94n9";
         assert_eq!(atd.extract_code_from_url(url), code);
+    }
+
+    #[test]
+    fn parsing_private_messages() {
+        let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message";
+        assert_eq!(parse_message(raw_message).unwrap(), MessageType::PrivateMessage(MessageInfo{user: "carkhy".to_string(), text: "a function that takes a string and returns the message".to_string()}));
+    }
+
+    #[test]
+    fn parsing_ping_messages() {
+        let ping_message = "PING :tmi.twitch.tv";
+        assert_eq!(parse_message(ping_message).unwrap(), MessageType::PingMessage);
     }
 }

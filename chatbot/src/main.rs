@@ -1,7 +1,5 @@
 extern crate websocket;
 
-use websocket::OwnedMessage;
-
 mod proxies;
 
 #[tokio::main]
@@ -11,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     proxy.initialize().await;
     proxy.send_message("Hello, World!");
     for message in proxy.incoming_messages() {
-        println!("{}", message);
+        println!("User {} wrote message {}", message.user, message.text);
     };
     println!("Finished");
     Ok(())
