@@ -4,38 +4,6 @@ use websocket::{client::ClientBuilder, Message, OwnedMessage};
 use reqwest;
 use thiserror::Error;
 
-#[derive(Debug, PartialEq)]
-pub struct MessageInfo {
-    pub user: String,
-    pub text: String,
-}
-
-#[derive(Debug, PartialEq)]
-enum MessageType {
-    PrivateMessage(MessageInfo),
-    PingMessage,
-}
-
-fn parse_message(raw_message: &str) -> Option<MessageType> {
-    let words = raw_message.split(" ").collect::<Vec<&str>>();
-    if *words.get(1)? == "PRIVMSG" {
-        let user = extract_user(raw_message)?;
-        let text = extract_text(raw_message)?;
-        let message_info = MessageInfo {user: user.to_owned(), text: text.to_owned()};
-        return Some(MessageType::PrivateMessage(message_info));
-    } else if *words.get(0)? == "PING" {
-        return Some(MessageType::PingMessage);
-    }
-    None
-}
-
-fn extract_user(raw_message: &str) -> Option<&str> {
-    raw_message.split("!").nth(0).map(|s | &s[1..])
-}
-
-fn extract_text(raw_message: &str) -> Option<&str> {
-    raw_message.split(":").nth(2)
-}
 
 static VALIDATION_URL: &str = "https://id.twitch.tv/oauth2/validate";
 static REDIRECT_URI: &str = "https://localhost:3030";
@@ -186,8 +154,8 @@ impl<'a> TwitchChatProxy {
                     let parsedMessage = parse_message(&t)?;
                     match parsedMessage {
                         MessageType::PrivateMessage(message_info) => Some(message_info),
-                        MessageType::PingMessage => {
-                            let message_obj = Message::text("PONG :tmi.twitch.tv".to_owned());
+                        MessageType::PingMessage(text) => {
+                            let message_obj = Message::text(format!("PONG {}", text));
                             sender.send_message(&message_obj);
                             // self.send_raw_message("PONG :tmi.twitch.tv".to_owned());
                             None
@@ -201,6 +169,127 @@ impl<'a> TwitchChatProxy {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct MessageInfo {
+    pub user: String,
+    pub text: String,
+}
+
+#[derive(Debug, PartialEq)]
+enum MessageType {
+    PrivateMessage(MessageInfo),
+    PingMessage(String),
+}
+
+fn parse_to_end_or_space(str : &str, i : &mut usize) {
+    while *i < str.len() {
+        if str.as_bytes()[*i] as char == ' ' { break; }
+        *i += 1;
+    }
+}
+
+fn parse_message(raw_message: &str) -> Option<MessageType> {
+    enum State { Starting, ParsingUserName, UserRemain, ParsePing, SecondToken }
+    use State::*;
+    
+    let mut token_start = 0;
+    let mut i = 0;
+    let mut state = Starting;
+    let mut user_name = &raw_message[1..];
+    
+    while i < raw_message.len() {
+        let char = raw_message.as_bytes()[i] as char; // we're indexing bytes, but comparing chars
+        match state {
+            Starting => if char == ':' { state = ParsingUserName } else { state = ParsePing },
+            ParsingUserName => match char {
+                ' ' => return None, // that's unexpected ! the end of the user name was never found.
+                '!' => { // got the end of the user name
+                    user_name = &raw_message[1..i]; // end is exclusive so we can use it as is.
+                    state = UserRemain;
+                },
+                _ => (), // keep parsing
+            },
+            UserRemain => { // we could get fancy here and return it too, I guess you could get user metadata
+                // like chat color or sub status from that address...
+                parse_to_end_or_space(raw_message, &mut i);
+                token_start = i + 1;
+                state = SecondToken;                    
+            },
+            ParsePing => {
+                parse_to_end_or_space(raw_message, &mut i);
+                if &raw_message[0..i] == "PING" {
+                    return Some(MessageType::PingMessage(String::from(&raw_message[i+1..])));
+                } else {
+                    return None; // we were expecting a PING message.
+                }
+            },
+            SecondToken => { // at this point we weeded out all other message types so we're expecting a PRIVMSG
+                parse_to_end_or_space(raw_message, &mut i);
+                if &raw_message[token_start..i] == "PRIVMSG" {
+                    i += 1; // skip the space we're at
+                    parse_to_end_or_space(raw_message, &mut i); // skip the channel name 
+                    return Some(MessageType::PrivateMessage(
+                        MessageInfo{user: user_name.to_owned(), text: String::from(&raw_message[i+2..])} // +2 for the colon
+                    ));
+                } else {
+                    return None;
+                }
+            },
+        }
+        i+=1;
+    }
+    // We should never get here but the compiler wants to be happy    
+    None
+}
+
+// fn extract_user(raw_message: &str) -> Option<&str> {
+//     raw_message.split("!").nth(0).map(|s | &s[1..])
+// }
+
+// fn extract_text(raw_message: &str) -> Option<&str> {
+//     raw_message.split(":").nth(2)
+// }
+    
+    // let first_space = raw_message.find(' ')?;
+    // let first_token = &raw_message[0..first_space];
+    // if first_token == "PING" {
+    //     return Some(MessageType::PingMessage(raw_message[first_space+1..].to_owned()))
+    // }
+    // let second_space = raw_message[first_space+1..].find(' ')?;
+    // let second_token = &raw_message[first_space+1..second_space];
+    // if second_token == "PRIVMSG" {
+    //     return Some(MessageType(
+    //         MessageInfo{user : }
+    //     ))
+    // }
+    
+//    let second_space = 
+    // let mut token_range = (0..0);
+    // token1
+    // //let token_count = 0usize;
+    // let i = 0usize;
+    // while i < raw_message.len() {
+    //     match raw_message[0] {
+    //         ' ' => {
+    //             let slice = &raw_message[]
+    //         },
+    //         _ => {
+    //             i += 1;
+    //             token_range.end = i;
+    //         },
+    //     }
+    // }
+    // let words = raw_message.split(" ").collect::<Vec<&str>>();
+    // if *words.get(1)? == "PRIVMSG" {
+    //     let user = extract_user(raw_message)?;
+    //     let text = extract_text(raw_message)?;
+    //     let message_info = MessageInfo {user: user.to_owned(), text: text.to_owned()};
+    //     return Some(MessageType::PrivateMessage(message_info));
+    // } else if *words.get(0)? == "PING" {
+    //     return Some(MessageType::PingMessage);
+    // }
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -213,6 +302,8 @@ mod tests {
         assert_eq!(atd.extract_code_from_url(url), code);
     }
 
+    // TODO: Check that we handle malformed messages gracefully
+    
     #[test]
     fn parsing_private_messages() {
         let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message";
@@ -222,6 +313,6 @@ mod tests {
     #[test]
     fn parsing_ping_messages() {
         let ping_message = "PING :tmi.twitch.tv";
-        assert_eq!(parse_message(ping_message).unwrap(), MessageType::PingMessage);
+        assert_eq!(parse_message(ping_message).unwrap(), MessageType::PingMessage(":tmi.twitch.tv".to_owned()));
     }
 }
