@@ -242,53 +242,6 @@ fn parse_message(raw_message: &str) -> Option<MessageType> {
     None
 }
 
-// fn extract_user(raw_message: &str) -> Option<&str> {
-//     raw_message.split("!").nth(0).map(|s | &s[1..])
-// }
-
-// fn extract_text(raw_message: &str) -> Option<&str> {
-//     raw_message.split(":").nth(2)
-// }
-    
-    // let first_space = raw_message.find(' ')?;
-    // let first_token = &raw_message[0..first_space];
-    // if first_token == "PING" {
-    //     return Some(MessageType::PingMessage(raw_message[first_space+1..].to_owned()))
-    // }
-    // let second_space = raw_message[first_space+1..].find(' ')?;
-    // let second_token = &raw_message[first_space+1..second_space];
-    // if second_token == "PRIVMSG" {
-    //     return Some(MessageType(
-    //         MessageInfo{user : }
-    //     ))
-    // }
-    
-//    let second_space = 
-    // let mut token_range = (0..0);
-    // token1
-    // //let token_count = 0usize;
-    // let i = 0usize;
-    // while i < raw_message.len() {
-    //     match raw_message[0] {
-    //         ' ' => {
-    //             let slice = &raw_message[]
-    //         },
-    //         _ => {
-    //             i += 1;
-    //             token_range.end = i;
-    //         },
-    //     }
-    // }
-    // let words = raw_message.split(" ").collect::<Vec<&str>>();
-    // if *words.get(1)? == "PRIVMSG" {
-    //     let user = extract_user(raw_message)?;
-    //     let text = extract_text(raw_message)?;
-    //     let message_info = MessageInfo {user: user.to_owned(), text: text.to_owned()};
-    //     return Some(MessageType::PrivateMessage(message_info));
-    // } else if *words.get(0)? == "PING" {
-    //     return Some(MessageType::PingMessage);
-    // }
-
 
 #[cfg(test)]
 mod tests {
