@@ -4,13 +4,13 @@ use websocket::{client::ClientBuilder, Message, OwnedMessage};
 use reqwest;
 use thiserror::Error;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct MessageInfo {
     pub user: String,
     pub text: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 enum MessageType {
     PrivateMessage(MessageInfo),
     PingMessage,
@@ -216,12 +216,15 @@ mod tests {
     #[test]
     fn parsing_private_messages() {
         let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message";
-        assert_eq!(parse_message(raw_message).unwrap(), MessageType::PrivateMessage(MessageInfo{user: "carkhy".to_string(), text: "a function that takes a string and returns the message".to_string()}));
+        assert!(matches!(parse_message(raw_message),
+                         Some(MessageType::PrivateMessage(MessageInfo{user, text}))
+                         if user == "carkhy" && text == "a function that takes a string and returns the message"
+        ));
     }
 
     #[test]
     fn parsing_ping_messages() {
         let ping_message = "PING :tmi.twitch.tv";
-        assert_eq!(parse_message(ping_message).unwrap(), MessageType::PingMessage);
+        assert!(matches!(parse_message(ping_message), Some(MessageType::PingMessage)));
     }
 }
