@@ -1,5 +1,5 @@
 use serde_json::Value;
-use std::env;
+use std::{env, str::Chars};
 use websocket::{client::ClientBuilder, Message, OwnedMessage};
 use reqwest;
 use thiserror::Error;
@@ -178,67 +178,55 @@ pub struct MessageInfo {
 #[derive(Debug, PartialEq)]
 enum MessageType {
     PrivateMessage(MessageInfo),
+
     PingMessage(String),
 }
 
-fn parse_to_end_or_space(str : &str, i : &mut usize) {
-    while *i < str.len() {
-        if str.as_bytes()[*i] as char == ' ' { break; }
-        *i += 1;
-    }
-}
-
 fn parse_message(raw_message: &str) -> Option<MessageType> {
-    enum State { Starting, ParsingUserName, UserRemain, ParsePing, SecondToken }
+    enum State { Starting, ParsingUserName, ParseUserRemaining, ParsePing, SecondToken }
     use State::*;
     
-    let mut token_start = 0;
-    let mut i = 0;
     let mut state = Starting;
-    let mut user_name = &raw_message[1..];
+    let mut user_name = String::with_capacity(raw_message.len());
+    let mut token = String::with_capacity(raw_message.len());
+    // strings are supposed to be valid utf8
+    let codepoints: Vec<char> = raw_message.chars().collect(); 
     
-    while i < raw_message.len() {
-        let char = raw_message.as_bytes()[i] as char; // we're indexing bytes, but comparing chars
+    for (i, &codepoint) in codepoints.iter().enumerate() {
         match state {
-            Starting => if char == ':' { state = ParsingUserName } else { state = ParsePing },
-            ParsingUserName => match char {
-                ' ' => return None, // that's unexpected ! the end of the user name was never found.
-                '!' => { // got the end of the user name
-                    user_name = &raw_message[1..i]; // end is exclusive so we can use it as is.
-                    state = UserRemain;
-                },
-                _ => (), // keep parsing
+            Starting => if codepoint == ':' { state = ParsingUserName } else {
+                token.push(codepoint);
+                state = ParsePing;
             },
-            UserRemain => { // we could get fancy here and return it too, I guess you could get user metadata
-                // like chat color or sub status from that address...
-                parse_to_end_or_space(raw_message, &mut i);
-                token_start = i + 1;
-                state = SecondToken;                    
+            ParsingUserName => match codepoint {
+                ' ' => return None,
+                '!' => state = ParseUserRemaining,
+                _  => user_name.push(codepoint),
             },
-            ParsePing => {
-                parse_to_end_or_space(raw_message, &mut i);
-                if &raw_message[0..i] == "PING" {
-                    return Some(MessageType::PingMessage(String::from(&raw_message[i+1..])));
-                } else {
-                    return None; // we were expecting a PING message.
+            ParseUserRemaining => if codepoint == ' ' { state = SecondToken },
+            ParsePing => match codepoint {
+                ' ' => if token == "PING" {
+                    let s: String = codepoints[i+1..].iter().collect();
+                    return Some(MessageType::PingMessage(s))
                 }
-            },
-            SecondToken => { // at this point we weeded out all other message types so we're expecting a PRIVMSG
-                parse_to_end_or_space(raw_message, &mut i);
-                if &raw_message[token_start..i] == "PRIVMSG" {
-                    i += 1; // skip the space we're at
-                    parse_to_end_or_space(raw_message, &mut i); // skip the channel name 
-                    return Some(MessageType::PrivateMessage(
-                        MessageInfo{user: user_name.to_owned(), text: String::from(&raw_message[i+2..])} // +2 for the colon
-                    ));
-                } else {
-                    return None;
+                _ => token.push(codepoint),
+            },            
+            SecondToken => {
+                match codepoint {
+                    ' ' => if token == "PRIVMSG" {
+                        let mut chars = codepoints[i+1..].iter();
+                        for c in &mut chars { if *c == ' ' {break}} // skip chan name
+                        return Some(MessageType::PrivateMessage(
+                            MessageInfo{
+                                user: user_name,
+                                text: chars.skip(1).collect(),
+                            }));
+                    },
+                    _ => token.push(codepoint),
                 }
             },
         }
-        i+=1;
     }
-    // We should never get here but the compiler wants to be happy    
     None
 }
 
@@ -267,5 +255,20 @@ mod tests {
     fn parsing_ping_messages() {
         let ping_message = "PING :tmi.twitch.tv";
         assert_eq!(parse_message(ping_message).unwrap(), MessageType::PingMessage(":tmi.twitch.tv".to_owned()));
+    }
+
+    #[test]
+    fn collect_after_skipping_past_the_end () {
+        let s = String::from("bleh");
+        let iter = s.chars().skip(35);
+        let s2: String = iter.collect();
+        assert_eq!(s2, "");
+    }
+    
+    #[test]
+    fn slice_starting_at_len () {
+        let s = String::from("bleh");
+        let slice = &s[s.len()..];
+        assert_eq!(slice, "");
     }
 }
