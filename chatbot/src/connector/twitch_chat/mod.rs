@@ -69,11 +69,11 @@ impl<'a> TwitchChatConnector {
                     OwnedMessage::Text(t) => {
                         let parsed_message = parsing::parse_message(&t)?;
                         match parsed_message {
-                            parsing::MessageType::PrivateMessage(message_info) => {
+                            parsing::MessageType::UserMessage(message_info) => {
                                 Some(message_info)
                             }
-                            parsing::MessageType::PingMessage => {
-                                let message_obj = Message::text("PONG :tmi.twitch.tv".to_owned());
+                            parsing::MessageType::PingMessage(server) => {
+                                let message_obj = Message::text(format!("PONG :{}", server));
                                 sender.send_message(&message_obj);
                                 // self.send_raw_message("PONG :tmi.twitch.tv".to_owned());
                                 None
