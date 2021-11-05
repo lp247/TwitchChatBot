@@ -195,28 +195,31 @@ fn parse_message(raw_message: &str) -> Option<MessageType> {
                 token.push(codepoint);
                 state = ParsePing;
             },
-            ParsingUserName => match codepoint {
+            ParsingUserName => match codepoint { // :carkhy!carkhy@carkhy.tmi.twitch.tv
                 ' ' => return None,
                 '!' => state = ParseUserRemaining,
                 _  => user_name.push(codepoint),
             },
             ParseUserRemaining => if codepoint == ' ' { state = SecondToken },
-            ParsePing => match codepoint {
+            ParsePing => match codepoint { // PING :tmi.twitch.tv
                 ' ' => if token == "PING" {
-                    let s: String = raw_message[i..].chars().skip(1).collect();
-                    return Some(MessageType::PingMessage(s))
+                    return Some(MessageType::PingMessage(
+                        raw_message[i..].chars().skip(1).collect()
+                    ))
                 }
                 _ => token.push(codepoint),
             },            
             SecondToken => {
-                match codepoint {
+                match codepoint { // PRIVMSG #captaincallback :backseating backseating
                     ' ' => if token == "PRIVMSG" {
-                        let chars = raw_message[i..].chars().skip(1)
-                            .skip_while(|c| *c != ' '); // skip chan name
                         return Some(MessageType::PrivateMessage(
                             MessageInfo{
                                 user: user_name,
-                                text: chars.skip(2).collect(), //skip space and colon
+                                text: raw_message[i..].chars()
+                                    .skip(1) // skip space
+                                    .skip_while(|c| *c != ' ') // skip chan name
+                                    .skip(2) //skip space and colon
+                                    .collect(), 
                             }));
                     } else { // we're only interested in PRIVMSG
                         return None;
