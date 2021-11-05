@@ -178,7 +178,6 @@ pub struct MessageInfo {
 #[derive(Debug, PartialEq)]
 enum MessageType {
     PrivateMessage(MessageInfo),
-
     PingMessage(String),
 }
 
@@ -189,10 +188,8 @@ fn parse_message(raw_message: &str) -> Option<MessageType> {
     let mut state = Starting;
     let mut user_name = String::with_capacity(raw_message.len());
     let mut token = String::with_capacity(raw_message.len());
-    // strings are supposed to be valid utf8
-    let codepoints: Vec<char> = raw_message.chars().collect(); 
     
-    for (i, &codepoint) in codepoints.iter().enumerate() {
+    for (i, codepoint) in raw_message.char_indices() {
         match state {
             Starting => if codepoint == ':' { state = ParsingUserName } else {
                 token.push(codepoint);
@@ -206,7 +203,7 @@ fn parse_message(raw_message: &str) -> Option<MessageType> {
             ParseUserRemaining => if codepoint == ' ' { state = SecondToken },
             ParsePing => match codepoint {
                 ' ' => if token == "PING" {
-                    let s: String = codepoints[i+1..].iter().collect();
+                    let s: String = raw_message[i..].chars().skip(1).collect();
                     return Some(MessageType::PingMessage(s))
                 }
                 _ => token.push(codepoint),
@@ -214,13 +211,15 @@ fn parse_message(raw_message: &str) -> Option<MessageType> {
             SecondToken => {
                 match codepoint {
                     ' ' => if token == "PRIVMSG" {
-                        let mut chars = codepoints[i+1..].iter();
-                        for c in &mut chars { if *c == ' ' {break}} // skip chan name
+                        let chars = raw_message[i..].chars().skip(1)
+                            .skip_while(|c| *c != ' '); // skip chan name
                         return Some(MessageType::PrivateMessage(
                             MessageInfo{
                                 user: user_name,
-                                text: chars.skip(1).collect(),
+                                text: chars.skip(2).collect(), //skip space and colon
                             }));
+                    } else { // we're only interested in PRIVMSG
+                        return None;
                     },
                     _ => token.push(codepoint),
                 }
