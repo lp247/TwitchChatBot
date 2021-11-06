@@ -32,20 +32,26 @@ fn parse_full_text_message(raw_message: &str) -> Option<MessageType> {
     use ParsingState::*;
 
     let mut state = UserName;
-    let mut user_name = String::with_capacity(raw_message.len());
-    let mut token = String::with_capacity(raw_message.len());
+    let mut user_name = &raw_message[0..0];
+    let mut marker = 0;
 
     for (i, codepoint) in raw_message.char_indices() {
         match state {
             UserName => match codepoint {
                 // :carkhy!carkhy@carkhy.tmi.twitch.tv
-                ':' => (),
+                ':' => {
+                    marker = i + 1;
+                }
                 ' ' => return None,
-                '!' => state = AdditionalUserInfo,
-                _ => user_name.push(codepoint),
+                '!' => {
+                    user_name = &raw_message[marker..i];
+                    state = AdditionalUserInfo;
+                }
+                _ => (),
             },
             AdditionalUserInfo => {
                 if codepoint == ' ' {
+                    marker = i + 1;
                     state = MessageToken
                 }
             }
@@ -53,14 +59,15 @@ fn parse_full_text_message(raw_message: &str) -> Option<MessageType> {
                 match codepoint {
                     // PRIVMSG #captaincallback :backseating backseating
                     ' ' => {
+                        let token = &raw_message[marker..i];
                         if token == "PRIVMSG" {
                             state = Channel;
                         } else {
                             // we're only interested in PRIVMSG
                             return None;
                         }
-                    }
-                    _ => token.push(codepoint),
+                    },
+                    _ => (),
                 }
             }
             Channel => match codepoint {
@@ -71,7 +78,7 @@ fn parse_full_text_message(raw_message: &str) -> Option<MessageType> {
             },
             MessageText => {
                 return Some(MessageType::UserMessage(MessageInfo {
-                    user: user_name,
+                    user: user_name.to_owned(),
                     text: raw_message[(i + 1)..].trim().to_owned(),
                 }));
             }
