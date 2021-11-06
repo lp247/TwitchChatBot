@@ -10,8 +10,16 @@ pub enum MessageType {
     PingMessage(String),
 }
 
-pub fn parse_message(raw_message: &str) -> Option<MessageType> {
-    enum State { Starting, ParsingUserName, SkipAdditionalUserInfo, ParsePing, ParseUserMessage }
+pub fn parse_full_message(raw_message: &str) -> Option<MessageType> {
+    enum State {
+        Starting,
+        ParsingUserName,
+        SkipAdditionalUserInfo,
+        ParsePing,
+        ParseUserMessage,
+        ParseMessageChannel,
+        ParseMessageText,
+    }
     use State::*;
 
     let mut state = Starting;
@@ -20,42 +28,62 @@ pub fn parse_message(raw_message: &str) -> Option<MessageType> {
 
     for (i, codepoint) in raw_message.char_indices() {
         match state {
-            Starting => if codepoint == ':' { state = ParsingUserName } else {
-                token.push(codepoint);
-                state = ParsePing;
-            },
-            ParsingUserName => match codepoint { // :carkhy!carkhy@carkhy.tmi.twitch.tv
+            Starting => {
+                if codepoint == ':' {
+                    state = ParsingUserName
+                } else {
+                    token.push(codepoint);
+                    state = ParsePing;
+                }
+            }
+            ParsingUserName => match codepoint {
+                // :carkhy!carkhy@carkhy.tmi.twitch.tv
                 ' ' => return None,
                 '!' => state = SkipAdditionalUserInfo,
-                _  => user_name.push(codepoint),
+                _ => user_name.push(codepoint),
             },
-            SkipAdditionalUserInfo => if codepoint == ' ' { state = ParseUserMessage },
-            ParsePing => match codepoint { // PING :tmi.twitch.tv
-                ' ' => if token == "PING" {
-                    return Some(MessageType::PingMessage(
-                        raw_message[i..].chars().skip(2).collect()
-                    ))
+            SkipAdditionalUserInfo => {
+                if codepoint == ' ' {
+                    state = ParseUserMessage
+                }
+            }
+            ParsePing => match codepoint {
+                // PING :tmi.twitch.tv
+                ' ' => {
+                    if token == "PING" {
+                        return Some(MessageType::PingMessage(
+                            raw_message[i..].chars().skip(2).collect(),
+                        ));
+                    }
                 }
                 _ => token.push(codepoint),
-            },            
+            },
             ParseUserMessage => {
-                match codepoint { // PRIVMSG #captaincallback :backseating backseating
-                    ' ' => if token == "PRIVMSG" {
-                        return Some(MessageType::UserMessage(
-                            MessageInfo{
-                                user: user_name,
-                                text: raw_message[i..].chars()
-                                    .skip(1) // skip space
-                                    .skip_while(|c| *c != ' ') // skip chan name
-                                    .skip(2) //skip space and colon
-                                    .collect(), 
-                            }));
-                    } else { // we're only interested in PRIVMSG
-                        return None;
-                    },
+                match codepoint {
+                    // PRIVMSG #captaincallback :backseating backseating
+                    ' ' => {
+                        if token == "PRIVMSG" {
+                            state = ParseMessageChannel;
+                        } else {
+                            // we're only interested in PRIVMSG
+                            return None;
+                        }
+                    }
                     _ => token.push(codepoint),
                 }
+            }
+            ParseMessageChannel => match codepoint {
+                ' ' => {
+                    state = ParseMessageText;
+                }
+                _ => (),
             },
+            ParseMessageText => {
+                return Some(MessageType::UserMessage(MessageInfo {
+                    user: user_name,
+                    text: raw_message[(i + 1)..].trim().to_owned(),
+                }));
+            }
         }
     }
     None
@@ -68,7 +96,7 @@ mod tests {
     #[test]
     fn parsing_private_messages() {
         let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message";
-        let parsed = parse_message(raw_message);
+        let parsed = parse_full_message(raw_message);
         assert!(parsed.is_some());
         if let MessageType::UserMessage(info) = parsed.unwrap() {
             assert_eq!(info.user, "carkhy");
@@ -84,7 +112,7 @@ mod tests {
     #[test]
     fn parsing_private_messages_with_trailing_newlines() {
         let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message\n";
-        let parsed = parse_message(raw_message);
+        let parsed = parse_full_message(raw_message);
         assert!(parsed.is_some());
         if let MessageType::UserMessage(info) = parsed.unwrap() {
             assert_eq!(info.user, "carkhy");
@@ -100,7 +128,7 @@ mod tests {
     #[test]
     fn parsing_ping_messages() {
         let ping_message = "PING :tmi.twitch.tv";
-        let parsed = parse_message(ping_message);
+        let parsed = parse_full_message(ping_message);
         assert!(parsed.is_some());
         if let MessageType::PingMessage(server) = parsed.unwrap() {
             assert_eq!(server, "tmi.twitch.tv");
