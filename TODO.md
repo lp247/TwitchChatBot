@@ -8,7 +8,7 @@
 - [ ] Simplify and fully automate the process for getting the access token
 - [ ] Command options
 - [ ] Create commands on the fly
-- [ ] Remove newlines after messages
+- [X] Remove newlines after messages
 
 
 
