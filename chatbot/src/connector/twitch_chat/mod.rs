@@ -2,7 +2,7 @@ mod auth;
 mod error;
 mod parsing;
 
-use std::env;
+use std::{env, str::FromStr};
 use websocket::{client::ClientBuilder, Message, OwnedMessage};
 
 pub struct TwitchChatConnector {
@@ -67,7 +67,7 @@ impl<'a> TwitchChatConnector {
             .filter_map(move |message| match message {
                 Ok(m) => match m {
                     OwnedMessage::Text(t) => {
-                        let parsed_message = parsing::parse_full_message(&t)?;
+                        let parsed_message = parsing::MessageType::from_str(&t).ok()?;
                         match parsed_message {
                             parsing::MessageType::UserMessage(message_info) => Some(message_info),
                             parsing::MessageType::PingMessage(server) => {

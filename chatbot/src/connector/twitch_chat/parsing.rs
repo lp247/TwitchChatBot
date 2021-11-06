@@ -1,3 +1,10 @@
+use std::str::FromStr;
+
+#[derive(Debug)]
+pub enum ParseMessageTypeError {
+    UnknownMessageType,
+}
+
 #[derive(Debug)]
 pub struct MessageInfo {
     pub user: String,
@@ -10,88 +17,98 @@ pub enum MessageType {
     PingMessage(String),
 }
 
-// Example message: PING :tmi.twitch.tv
-fn parse_full_ping_message(raw_message: &str) -> Option<MessageType> {
-    if raw_message.starts_with("PING ") {
-        return Some(MessageType::PingMessage(
-            raw_message.chars().skip(6).collect(),
-        ));
+impl MessageType {
+    fn parse_from_str(s: &str) -> Result<Self, ParseMessageTypeError> {
+        if s.starts_with(":") {
+            return MessageType::from_text_message(&s);
+        }
+        MessageType::from_ping_message(&s)
     }
-    None
-}
 
-// Example message: :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :backseating backseating
-fn parse_full_text_message(raw_message: &str) -> Option<MessageType> {
-    enum ParsingState {
-        UserName,
-        AdditionalUserInfo,
-        MessageToken,
-        Channel,
-        MessageText,
+    // Example message: PING :tmi.twitch.tv
+    fn from_ping_message(raw_message: &str) -> Result<Self, ParseMessageTypeError> {
+        if raw_message.starts_with("PING ") {
+            return Ok(MessageType::PingMessage(
+                raw_message.chars().skip(6).collect(),
+            ));
+        }
+        Err(ParseMessageTypeError::UnknownMessageType)
     }
-    use ParsingState::*;
 
-    let mut state = UserName;
-    let mut user_name = &raw_message[0..0];
-    let mut marker = 0;
+    // Example message: :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :backseating backseating
+    fn from_text_message(raw_message: &str) -> Result<Self, ParseMessageTypeError> {
+        enum ParsingState {
+            UserName,
+            AdditionalUserInfo,
+            MessageToken,
+            Channel,
+            MessageText,
+        }
+        use ParsingState::*;
 
-    for (i, codepoint) in raw_message.char_indices() {
-        match state {
-            UserName => match codepoint {
-                // :carkhy!carkhy@carkhy.tmi.twitch.tv
-                ':' => {
-                    marker = i + 1;
-                }
-                ' ' => return None,
-                '!' => {
-                    user_name = &raw_message[marker..i];
-                    state = AdditionalUserInfo;
-                }
-                _ => (),
-            },
-            AdditionalUserInfo => {
-                if codepoint == ' ' {
-                    marker = i + 1;
-                    state = MessageToken
-                }
-            }
-            MessageToken => {
-                match codepoint {
-                    // PRIVMSG #captaincallback :backseating backseating
-                    ' ' => {
-                        let token = &raw_message[marker..i];
-                        if token == "PRIVMSG" {
-                            state = Channel;
-                        } else {
-                            // we're only interested in PRIVMSG
-                            return None;
-                        }
-                    },
+        let mut state = UserName;
+        let mut user_name = &raw_message[0..0];
+        let mut marker = 0;
+
+        for (i, codepoint) in raw_message.char_indices() {
+            match state {
+                UserName => match codepoint {
+                    // :carkhy!carkhy@carkhy.tmi.twitch.tv
+                    ':' => {
+                        marker = i + 1;
+                    }
+                    ' ' => return Err(ParseMessageTypeError::UnknownMessageType),
+                    '!' => {
+                        user_name = &raw_message[marker..i];
+                        state = AdditionalUserInfo;
+                    }
                     _ => (),
+                },
+                AdditionalUserInfo => {
+                    if codepoint == ' ' {
+                        marker = i + 1;
+                        state = MessageToken
+                    }
                 }
-            }
-            Channel => match codepoint {
-                ' ' => {
-                    state = MessageText;
+                MessageToken => {
+                    match codepoint {
+                        // PRIVMSG #captaincallback :backseating backseating
+                        ' ' => {
+                            let token = &raw_message[marker..i];
+                            if token == "PRIVMSG" {
+                                state = Channel;
+                            } else {
+                                // we're only interested in PRIVMSG
+                                return Err(ParseMessageTypeError::UnknownMessageType);
+                            }
+                        },
+                        _ => (),
+                    }
                 }
-                _ => (),
-            },
-            MessageText => {
-                return Some(MessageType::UserMessage(MessageInfo {
-                    user: user_name.to_owned(),
-                    text: raw_message[(i + 1)..].trim().to_owned(),
-                }));
+                Channel => match codepoint {
+                    ' ' => {
+                        state = MessageText;
+                    }
+                    _ => (),
+                },
+                MessageText => {
+                    return Ok(MessageType::UserMessage(MessageInfo {
+                        user: user_name.to_owned(),
+                        text: raw_message[(i + 1)..].trim().to_owned(),
+                    }));
+                }
             }
         }
+        Err(ParseMessageTypeError::UnknownMessageType)
     }
-    None
 }
 
-pub fn parse_full_message(raw_message: &str) -> Option<MessageType> {
-    if raw_message.starts_with(":") {
-        return parse_full_text_message(&raw_message);
+impl FromStr for MessageType {
+    type Err = ParseMessageTypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        MessageType::parse_from_str(s)
     }
-    parse_full_ping_message(&raw_message)
 }
 
 #[cfg(test)]
@@ -101,8 +118,8 @@ mod tests {
     #[test]
     fn parsing_private_messages() {
         let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message";
-        let parsed = parse_full_message(raw_message);
-        assert!(parsed.is_some());
+        let parsed = MessageType::from_str(raw_message);
+        assert!(parsed.is_ok());
         if let MessageType::UserMessage(info) = parsed.unwrap() {
             assert_eq!(info.user, "carkhy");
             assert_eq!(
@@ -117,8 +134,8 @@ mod tests {
     #[test]
     fn parsing_private_messages_with_trailing_newlines() {
         let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message\n";
-        let parsed = parse_full_message(raw_message);
-        assert!(parsed.is_some());
+        let parsed = MessageType::from_str(raw_message);
+        assert!(parsed.is_ok());
         if let MessageType::UserMessage(info) = parsed.unwrap() {
             assert_eq!(info.user, "carkhy");
             assert_eq!(
@@ -133,8 +150,8 @@ mod tests {
     #[test]
     fn parsing_ping_messages() {
         let ping_message = "PING :tmi.twitch.tv";
-        let parsed = parse_full_message(ping_message);
-        assert!(parsed.is_some());
+        let parsed = MessageType::from_str(ping_message);
+        assert!(parsed.is_ok());
         if let MessageType::PingMessage(server) = parsed.unwrap() {
             assert_eq!(server, "tmi.twitch.tv");
         } else {
