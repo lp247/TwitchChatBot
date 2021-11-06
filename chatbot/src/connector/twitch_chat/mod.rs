@@ -67,11 +67,9 @@ impl<'a> TwitchChatConnector {
             .filter_map(move |message| match message {
                 Ok(m) => match m {
                     OwnedMessage::Text(t) => {
-                        let parsed_message = parsing::parse_message(&t)?;
+                        let parsed_message = parsing::parse_full_message(&t)?;
                         match parsed_message {
-                            parsing::MessageType::UserMessage(message_info) => {
-                                Some(message_info)
-                            }
+                            parsing::MessageType::UserMessage(message_info) => Some(message_info),
                             parsing::MessageType::PingMessage(server) => {
                                 let message_obj = Message::text(format!("PONG :{}", server));
                                 sender.send_message(&message_obj);

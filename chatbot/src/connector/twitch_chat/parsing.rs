@@ -10,60 +10,51 @@ pub enum MessageType {
     PingMessage(String),
 }
 
-pub fn parse_full_message(raw_message: &str) -> Option<MessageType> {
-    enum State {
-        Starting,
-        ParsingUserName,
-        SkipAdditionalUserInfo,
-        ParsePing,
-        ParseUserMessage,
-        ParseMessageChannel,
-        ParseMessageText,
+// Example message: PING :tmi.twitch.tv
+fn parse_full_ping_message(raw_message: &str) -> Option<MessageType> {
+    if raw_message.starts_with("PING ") {
+        return Some(MessageType::PingMessage(
+            raw_message.chars().skip(6).collect(),
+        ));
     }
-    use State::*;
+    None
+}
 
-    let mut state = Starting;
+// Example message: :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :backseating backseating
+fn parse_full_text_message(raw_message: &str) -> Option<MessageType> {
+    enum ParsingState {
+        UserName,
+        AdditionalUserInfo,
+        MessageToken,
+        Channel,
+        MessageText,
+    }
+    use ParsingState::*;
+
+    let mut state = UserName;
     let mut user_name = String::with_capacity(raw_message.len());
     let mut token = String::with_capacity(raw_message.len());
 
     for (i, codepoint) in raw_message.char_indices() {
         match state {
-            Starting => {
-                if codepoint == ':' {
-                    state = ParsingUserName
-                } else {
-                    token.push(codepoint);
-                    state = ParsePing;
-                }
-            }
-            ParsingUserName => match codepoint {
+            UserName => match codepoint {
                 // :carkhy!carkhy@carkhy.tmi.twitch.tv
+                ':' => (),
                 ' ' => return None,
-                '!' => state = SkipAdditionalUserInfo,
+                '!' => state = AdditionalUserInfo,
                 _ => user_name.push(codepoint),
             },
-            SkipAdditionalUserInfo => {
+            AdditionalUserInfo => {
                 if codepoint == ' ' {
-                    state = ParseUserMessage
+                    state = MessageToken
                 }
             }
-            ParsePing => match codepoint {
-                // PING :tmi.twitch.tv
-                ' ' => {
-                    if token == "PING" {
-                        return Some(MessageType::PingMessage(
-                            raw_message[i..].chars().skip(2).collect(),
-                        ));
-                    }
-                }
-                _ => token.push(codepoint),
-            },
-            ParseUserMessage => {
+            MessageToken => {
                 match codepoint {
                     // PRIVMSG #captaincallback :backseating backseating
                     ' ' => {
                         if token == "PRIVMSG" {
-                            state = ParseMessageChannel;
+                            state = Channel;
                         } else {
                             // we're only interested in PRIVMSG
                             return None;
@@ -72,13 +63,13 @@ pub fn parse_full_message(raw_message: &str) -> Option<MessageType> {
                     _ => token.push(codepoint),
                 }
             }
-            ParseMessageChannel => match codepoint {
+            Channel => match codepoint {
                 ' ' => {
-                    state = ParseMessageText;
+                    state = MessageText;
                 }
                 _ => (),
             },
-            ParseMessageText => {
+            MessageText => {
                 return Some(MessageType::UserMessage(MessageInfo {
                     user: user_name,
                     text: raw_message[(i + 1)..].trim().to_owned(),
@@ -87,6 +78,13 @@ pub fn parse_full_message(raw_message: &str) -> Option<MessageType> {
         }
     }
     None
+}
+
+pub fn parse_full_message(raw_message: &str) -> Option<MessageType> {
+    if raw_message.starts_with(":") {
+        return parse_full_text_message(&raw_message);
+    }
+    parse_full_ping_message(&raw_message)
 }
 
 #[cfg(test)]
