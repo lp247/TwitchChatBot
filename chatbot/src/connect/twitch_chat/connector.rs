@@ -36,6 +36,10 @@ impl TwitchChatConnector {
         self.sender.login(access_token.as_str())?;
         Ok(())
     }
+
+    pub fn send_message(&mut self, message: &str) -> Result<(), ConnectorError> {
+        self.sender.send_message(message)
+    }
 }
 
 impl Connector for TwitchChatConnector {

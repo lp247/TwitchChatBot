@@ -8,10 +8,11 @@ mod connect;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     println!("Start");
-    let mut proxy = TwitchChatConnector::new("captaincallback");
-    proxy.initialize().await?;
+    let mut connector = TwitchChatConnector::new("captaincallback");
+    connector.initialize().await?;
+    connector.send_message("Starting Chat Bot")?;
     loop {
-        let message = proxy.recv_message();
+        let message = connector.recv_message();
         if let Ok(mut msg) = message {
             let part = match msg.content() {
                 MessageContent::Command(info) => {
