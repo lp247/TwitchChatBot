@@ -1,4 +1,4 @@
-use super::{connector::TwitchChatSender, parsing::UserMessage};
+use super::{parsing::UserMessage, sending::TwitchChatSender};
 use crate::connect::{ConnectorError, MessageContent, Request};
 
 pub struct TwitchChatRequest<'a> {
