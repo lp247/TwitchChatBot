@@ -52,22 +52,24 @@ impl MessageType {
 
         for (i, codepoint) in raw_message.char_indices() {
             match state {
-                UserName => // :carkhy!carkhy@carkhy.tmi.twitch.tv
-                    match codepoint {
-                        ':' => marker = i + 1,
-                        ' ' => return Err(ParseMessageTypeError::UnknownMessageType),
-                        '!' => {
-                            user_name = &raw_message[marker..i];
-                            state = AdditionalUserInfo;
-                        }
-                        _ => (),
-                    },
-                AdditionalUserInfo =>
+                // :carkhy!carkhy@carkhy.tmi.twitch.tv
+                UserName => match codepoint {
+                    ':' => marker = i + 1,
+                    ' ' => return Err(ParseMessageTypeError::UnknownMessageType),
+                    '!' => {
+                        user_name = &raw_message[marker..i];
+                        state = AdditionalUserInfo;
+                    }
+                    _ => (),
+                },
+                AdditionalUserInfo => {
                     if codepoint == ' ' {
                         marker = i + 1;
                         state = MessageToken
-                    },
-                MessageToken => // PRIVMSG #captaincallback :backseating backseating
+                    }
+                }
+                // PRIVMSG #captaincallback :backseating backseating
+                MessageToken => {
                     if codepoint == ' ' {
                         let token = &raw_message[marker..i];
                         if token == "PRIVMSG" {
@@ -76,11 +78,13 @@ impl MessageType {
                             // we're only interested in PRIVMSG
                             return Err(ParseMessageTypeError::UnknownMessageType);
                         }
-                    },
-                Channel =>
+                    }
+                }
+                Channel => {
                     if codepoint == ' ' {
                         state = MessageText;
-                    },
+                    }
+                }
                 MessageText => {
                     return Ok(MessageType::UserMessage(MessageInfo {
                         user: user_name.to_owned(),
