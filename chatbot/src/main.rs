@@ -1,9 +1,13 @@
-use crate::connect::{Command, Connector, MessageContent, TwitchChatConnector};
+use crate::{
+    connect::{Command, Connector, MessageContent, TwitchChatConnector},
+    handle::{CommandHandler, StaticStringCommandHandler},
+};
 use std::error::Error;
 
 extern crate websocket;
 
 mod connect;
+mod handle;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -11,23 +15,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let mut connector = TwitchChatConnector::new("captaincallback");
     connector.initialize().await?;
     connector.send_message("Starting Chat Bot")?;
+    let help_command_message =
+        "!help: Show this help | !info: Show some information about the chat bot";
+    let help_command_handler = StaticStringCommandHandler::new(help_command_message);
+    let info_command_message = "Hello, my name is TwitchBotanist. I am a twitch chat bot written in Rust. If you want to know what you can ask me, write '!help' into the chat!";
+    let info_command_handler = StaticStringCommandHandler::new(info_command_message);
     loop {
         let message = connector.recv_message();
         if let Ok(mut msg) = message {
-            let part = match msg.content() {
-                MessageContent::Command(info) => {
-                    let command_name = match info {
-                        Command::Help => "help",
-                    };
-                    format!("Got command '{}'", command_name)
-                }
-                MessageContent::Text(info) => {
-                    format!("Got message '{}'", info)
-                }
-            };
-            let response = format!("{} from user {}", part, msg.user_name());
-            println!("{}", response);
-            msg.respond(response.as_str()).unwrap();
-        }
+            match msg.content() {
+                MessageContent::Command(info) => match info {
+                    Command::Help => msg.respond(help_command_handler.run()),
+                    Command::Info => msg.respond(info_command_handler.run()),
+                },
+                MessageContent::Text(_) => Ok(()),
+            }?;
+        };
     }
 }

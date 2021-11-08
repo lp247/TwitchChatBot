@@ -1,17 +1,19 @@
 use super::CommandHandler;
 
-struct StaticString {
+pub struct StaticStringCommandHandler {
     message: String,
 }
 
-impl StaticString {
-    fn new(message: &str) -> Self {
-        Self { message: message.to_owned() }
+impl StaticStringCommandHandler {
+    pub fn new(message: &str) -> Self {
+        Self {
+            message: message.to_owned(),
+        }
     }
 }
 
-impl CommandHandler for StaticString {
-    fn run(&self, input: Option<&str>) -> &str {
+impl CommandHandler for StaticStringCommandHandler {
+    fn run(&self) -> &str {
         self.message.as_str()
     }
 }

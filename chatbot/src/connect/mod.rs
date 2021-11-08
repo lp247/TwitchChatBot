@@ -17,6 +17,7 @@ pub enum ConnectorError {
 #[derive(Debug)]
 pub enum Command {
     Help,
+    Info,
 }
 
 impl FromStr for Command {
@@ -32,6 +33,7 @@ impl FromStr for Command {
             let command_text = &text[1..command_end_index];
             match command_text {
                 "help" => Ok(Command::Help),
+                "info" => Ok(Command::Info),
                 _ => Err(Self::Err::UnknownCommand(command_text.to_owned())),
             }
         }
