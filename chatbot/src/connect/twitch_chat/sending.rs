@@ -35,6 +35,7 @@ impl TwitchChatSender {
         })?;
         self.send_raw_message(format!("PASS oauth:{}", access_token))?;
         self.send_raw_message(format!("NICK {}", user_name))?;
-        self.send_raw_message(format!("JOIN #{}", self.channel))
+        self.send_raw_message(format!("JOIN #{}", self.channel))?;
+        self.send_raw_message("CAP REQ :twitch.tv/membership".to_owned())
     }
 }

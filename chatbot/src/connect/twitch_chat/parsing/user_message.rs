@@ -51,6 +51,18 @@ impl FromStr for UserMessage {
                 MessageToken => {
                     if codepoint == ' ' {
                         let token = &message[marker..i];
+                        match token {
+                            "PRIVMSG" => state = Channel,
+                            "JOIN" => {
+                                return Self {
+                                    content: MessageContent::Command(Command {
+                                        commmand_type: Command::JOIN,
+                                        options: vec![],
+                                    }),
+                                }
+                            }
+                            "PART" => {}
+                        }
                         if token == "PRIVMSG" {
                             state = Channel;
                         } else {

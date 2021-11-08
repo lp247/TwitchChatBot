@@ -15,9 +15,17 @@ pub enum ConnectorError {
 }
 
 #[derive(Debug)]
-pub enum Command {
+pub enum CommandType {
     Help,
     Info,
+    Join,
+    Part,
+}
+
+#[derive(Debug)]
+pub struct Command {
+    pub commmand_type: CommandType,
+    pub options: Vec<String>,
 }
 
 impl FromStr for Command {
@@ -31,9 +39,19 @@ impl FromStr for Command {
         } else {
             let command_end_index = text.find(' ').unwrap_or(text.len());
             let command_text = &text[1..command_end_index];
+            let options: Vec<String> = text[(command_end_index + 1)..]
+                .split(' ')
+                .map(String::from)
+                .collect();
             match command_text {
-                "help" => Ok(Command::Help),
-                "info" => Ok(Command::Info),
+                "help" => Ok(Self {
+                    commmand_type: CommandType::Help,
+                    options: options,
+                }),
+                "info" => Ok(Self {
+                    commmand_type: CommandType::Info,
+                    options: options,
+                }),
                 _ => Err(Self::Err::UnknownCommand(command_text.to_owned())),
             }
         }

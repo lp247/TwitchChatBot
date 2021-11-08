@@ -1,5 +1,5 @@
 use crate::{
-    connect::{Command, Connector, MessageContent, TwitchChatConnector},
+    connect::{CommandType, Connector, MessageContent, TwitchChatConnector},
     handle::{CommandHandler, StaticStringCommandHandler},
 };
 use std::error::Error;
@@ -11,10 +11,10 @@ mod handle;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    println!("Start");
     let mut connector = TwitchChatConnector::new("captaincallback");
     connector.initialize().await?;
     connector.send_message("Starting Chat Bot")?;
+    connector.send_message("/followers")?;
     let help_command_message =
         "!help: Show this help | !info: Show some information about the chat bot";
     let help_command_handler = StaticStringCommandHandler::new(help_command_message);
@@ -24,9 +24,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let message = connector.recv_message();
         if let Ok(mut msg) = message {
             match msg.content() {
-                MessageContent::Command(info) => match info {
-                    Command::Help => msg.respond(help_command_handler.run()),
-                    Command::Info => msg.respond(info_command_handler.run()),
+                MessageContent::Command(info) => match info.commmand_type {
+                    CommandType::Help => msg.respond(help_command_handler.run(&info.options)),
+                    CommandType::Info => msg.respond(info_command_handler.run(&info.options)),
                 },
                 MessageContent::Text(_) => Ok(()),
             }?;

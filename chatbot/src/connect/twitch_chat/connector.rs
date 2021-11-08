@@ -51,6 +51,7 @@ impl Connector for TwitchChatConnector {
                 .map_err(|err| ConnectorError::MessageReceiveFailed(format!("{:?}", err)))?;
             match owned_message {
                 OwnedMessage::Text(text) => {
+                    println!("{}", text);
                     let parsed_message = TwitchChatMessage::from_str(&text)?;
                     match parsed_message {
                         TwitchChatMessage::UserMessage(user_message) => {

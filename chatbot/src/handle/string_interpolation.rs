@@ -1,10 +1,10 @@
 use super::CommandHandler;
 
-pub struct StaticStringCommandHandler {
+pub struct StringInterpolationCommandHandler {
     message: String,
 }
 
-impl StaticStringCommandHandler {
+impl StringInterpolationCommandHandler {
     pub fn new(message: &str) -> Self {
         Self {
             message: message.to_owned(),
@@ -12,8 +12,8 @@ impl StaticStringCommandHandler {
     }
 }
 
-impl CommandHandler for StaticStringCommandHandler {
-    fn run(&self, _: &Vec<String>) -> &str {
+impl CommandHandler for StringInterpolationCommandHandler {
+    fn run(&self, options: Vec<String>) -> &str {
         self.message.as_str()
     }
 }
