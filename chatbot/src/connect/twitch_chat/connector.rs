@@ -1,9 +1,9 @@
-use super::{
-    auth::AccessTokenDispenser, parsing::TwitchChatMessage, request::TwitchChatEvent,
-    sending::TwitchChatSender,
+use super::{auth::AccessTokenDispenser, request::TwitchChatEvent, sending::TwitchChatSender};
+use crate::connect::{
+    twitch_chat::event::{InternalEventContent, TwitchChatInternalEvent},
+    Connector, ConnectorError, Event,
 };
-use crate::connect::{Connector, ConnectorError, Event};
-use std::{net::TcpStream, str::FromStr};
+use std::net::TcpStream;
 use websocket::{receiver::Reader, ClientBuilder, OwnedMessage};
 
 pub struct TwitchChatConnector {
@@ -45,6 +45,7 @@ impl TwitchChatConnector {
 impl Connector for TwitchChatConnector {
     fn recv_event(&mut self) -> Result<Box<dyn Event + '_>, ConnectorError> {
         let receiver = &mut self.receiver;
+        let sender = &mut self.sender;
         loop {
             let owned_message = receiver
                 .recv_message()
@@ -52,15 +53,22 @@ impl Connector for TwitchChatConnector {
             match owned_message {
                 OwnedMessage::Text(text) => {
                     println!("{}", text);
-                    let parsed_message = TwitchChatMessage::from_str(&text)?;
-                    match parsed_message {
-                        TwitchChatMessage::UserMessage(user_message) => {
-                            break Ok(Box::new(TwitchChatEvent::new(
-                                user_message,
-                                &mut self.sender,
-                            )));
+                    if let Some(parsed_message) = TwitchChatInternalEvent::new(&text) {
+                        match parsed_message {
+                            TwitchChatInternalEvent::External(event_content) => {
+                                break Ok(Box::new(TwitchChatEvent::new(
+                                    event_content,
+                                    &mut self.sender,
+                                )));
+                            }
+                            TwitchChatInternalEvent::Internal(internal_content) => {
+                                match internal_content {
+                                    InternalEventContent::Ping(server) => {
+                                        sender.send_raw_message(format!("PONG :{}", server))?
+                                    }
+                                }
+                            }
                         }
-                        TwitchChatMessage::PingMessage(..) => continue,
                     }
                 }
                 _ => continue,

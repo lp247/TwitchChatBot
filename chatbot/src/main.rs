@@ -1,5 +1,7 @@
+use connect::EventContent;
+
 use crate::{
-    connect::{CommandType, Connector, MessageContent, TwitchChatConnector},
+    connect::{CommandType, Connector, TwitchChatConnector},
     handle::{CommandHandler, StaticStringCommandHandler},
 };
 use std::error::Error;
@@ -21,15 +23,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let info_command_message = "Hello, my name is TwitchBotanist. I am a twitch chat bot written in Rust. If you want to know what you can ask me, write '!help' into the chat!";
     let info_command_handler = StaticStringCommandHandler::new(info_command_message);
     loop {
-        let message = connector.recv_message();
+        let message = connector.recv_event();
         if let Ok(mut msg) = message {
             match msg.content() {
-                MessageContent::Command(info) => match info.commmand_type {
-                    CommandType::Help => msg.respond(help_command_handler.run(&info.options)),
-                    CommandType::Info => msg.respond(info_command_handler.run(&info.options)),
-                },
-                MessageContent::Text(_) => Ok(()),
-            }?;
+                EventContent::Command(info) => {
+                    match info.commmand_type {
+                        CommandType::Help => {
+                            msg.respond(help_command_handler.run(&info.options))
+                                .unwrap();
+                        }
+                        CommandType::Info => {
+                            msg.respond(info_command_handler.run(&info.options))
+                                .unwrap();
+                        }
+                    };
+                }
+                EventContent::Join(_) => (),
+                EventContent::Part(_) => (),
+                EventContent::TextMessage(_) => (),
+            };
         };
     }
 }

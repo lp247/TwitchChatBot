@@ -1,6 +1,6 @@
 mod auth;
 mod connector;
-mod parsing;
+mod event;
 mod request;
 mod sending;
 

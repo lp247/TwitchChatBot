@@ -27,77 +27,51 @@ pub struct Command {
 }
 
 impl Command {
-    fn new(text: &str, user_name: &str) -> Result<Self, ConnectorError> {
+    fn new(text: &str, user_name: &str) -> Option<Self> {
         if !text.starts_with('!') {
-            Err(ConnectorError::MessageReceiveFailed(
-                "Could not parse command".to_owned(),
-            ))
+            None
         } else {
-            let command_end_index = text.find(' ').unwrap_or(text.len());
+            let command_end_index = text.find(' ').unwrap_or(text.len() - 1);
             let command_text = &text[1..command_end_index];
             let options: Vec<String> = text[(command_end_index + 1)..]
                 .split(' ')
                 .map(String::from)
                 .collect();
             match command_text {
-                "help" => Ok(Self {
+                "help" => Some(Self {
                     commmand_type: CommandType::Help,
                     options: options,
                     user_name: user_name.to_owned(),
                 }),
-                "info" => Ok(Self {
+                "info" => Some(Self {
                     commmand_type: CommandType::Info,
                     options: options,
                     user_name: user_name.to_owned(),
                 }),
-                _ => Err(ConnectorError::UnknownCommand(command_text.to_owned())),
+                _ => None,
             }
         }
     }
 }
 
 #[derive(Debug)]
-struct TextMessage {
+pub struct TextMessage {
     text: String,
     user_name: String,
 }
 
 // Example text: #channel_name :backseating backseating
-
 impl TextMessage {
-    fn new(text: &str, user_name: &str) -> Result<Self, ConnectorError> {
-        enum ParsingState {
-            Channel,
-            MessageText,
+    fn new(text: &str, user_name: &str) -> Self {
+        Self {
+            text: text.to_owned(),
+            user_name: user_name.to_owned(),
         }
-        use ParsingState::*;
-
-        let mut state = Channel;
-
-        for (i, codepoint) in text.char_indices() {
-            match state {
-                Channel => {
-                    if codepoint == ' ' {
-                        state = MessageText;
-                    }
-                }
-                MessageText => {
-                    let text = text[(i + 1)..].trim();
-                    return Ok(Self {
-                        text: text.to_owned(),
-                        user_name: user_name.to_owned(),
-                    });
-                }
-            }
-        }
-        Err(ConnectorError::MessageReceiveFailed(
-            "Could not parse text message".to_owned(),
-        ))
     }
 }
 
 #[derive(Debug)]
-struct Part(String);
+pub struct Part(String);
 
 impl Part {
     fn new(user_name: &str) -> Self {
@@ -106,7 +80,7 @@ impl Part {
 }
 
 #[derive(Debug)]
-struct Join(String);
+pub struct Join(String);
 
 impl Join {
     fn new(user_name: &str) -> Self {
@@ -124,11 +98,13 @@ pub enum EventContent {
 
 // Example message: :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :backseating backseating
 impl EventContent {
-    fn new(message: &str) -> Result<Self, ConnectorError> {
+    fn new(message: &str) -> Option<Self> {
         enum ParsingState {
             UserName,
             AdditionalUserInfo,
             MessageToken,
+            Channel,
+            MessageBody,
         }
         use ParsingState::*;
 
@@ -141,11 +117,7 @@ impl EventContent {
                 // :carkhy!carkhy@carkhy.tmi.twitch.tv
                 UserName => match codepoint {
                     ':' => marker = i + 1,
-                    ' ' => {
-                        return Err(ConnectorError::MessageReceiveFailed(
-                            "Unexpected message syntax".to_owned(),
-                        ))
-                    }
+                    ' ' => return None,
                     '!' => {
                         user_name = &message[marker..i];
                         state = AdditionalUserInfo;
@@ -158,28 +130,44 @@ impl EventContent {
                         state = MessageToken
                     }
                 }
-                // PRIVMSG #channel_name :backseating backseating
                 MessageToken => {
                     if codepoint == ' ' {
                         let token = &message[marker..i];
-                        return match token {
-                            "PRIVMSG" => Ok(EventContent::TextMessage(TextMessage::new(
-                                &message[i..],
-                                user_name,
-                            )?)),
-                            "JOIN" => Ok(EventContent::Join(Join::new(user_name))),
-                            "PART" => Ok(EventContent::Part(Part::new(user_name))),
-                            _ => Err(ConnectorError::MessageReceiveFailed(
-                                "Unknown IRC command".to_owned(),
-                            )),
+                        match token {
+                            // (...) PRIVMSG #<channel> :backseating backseating
+                            "PRIVMSG" => {
+                                state = Channel;
+                            }
+                            // (...) JOIN #<channel>
+                            "JOIN" => return Some(EventContent::Join(Join::new(user_name))),
+                            // (...) PART #<channel>
+                            "PART" => return Some(EventContent::Part(Part::new(user_name))),
+                            // PING :tmi.twitch.tv
+                            _ => return None,
                         };
+                    }
+                }
+                Channel => {
+                    if codepoint == ':' {
+                        state = MessageBody;
+                    }
+                }
+                MessageBody => {
+                    if codepoint == '!' {
+                        return Some(EventContent::Command(Command::new(
+                            &message[i..].trim(),
+                            user_name,
+                        )?));
+                    } else {
+                        return Some(EventContent::TextMessage(TextMessage::new(
+                            &message[i..].trim(),
+                            user_name,
+                        )));
                     }
                 }
             }
         }
-        Err(ConnectorError::MessageReceiveFailed(
-            "Unknown error".to_owned(),
-        ))
+        None
     }
 }
 
@@ -190,4 +178,36 @@ pub trait Event {
 
 pub trait Connector {
     fn recv_event(&mut self) -> Result<Box<dyn Event + '_>, ConnectorError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::connect::EventContent;
+
+    fn user_message_helper(raw_message: &str, user_name: &str, expected: &str) {
+        let parsed = EventContent::new(raw_message);
+        assert!(parsed.is_some());
+        if let EventContent::TextMessage(user_message) = parsed.unwrap() {
+            assert_eq!(user_message.user_name, user_name);
+            assert_eq!(user_message.text, expected);
+        } else {
+            unreachable!();
+        }
+    }
+
+    #[test]
+    fn parsing_user_messages() {
+        let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message";
+        let expected_text = "a function that takes a string and returns the message";
+        let expected_user = "carkhy";
+        user_message_helper(raw_message, expected_user, expected_text);
+    }
+
+    #[test]
+    fn parsing_user_messages_with_trailing_newlines() {
+        let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message\n";
+        let expected_text = "a function that takes a string and returns the message";
+        let expected_user = "carkhy";
+        user_message_helper(raw_message, expected_user, expected_text);
+    }
 }
