@@ -3,11 +3,11 @@ use crate::connect::{ConnectorError, Event, EventContent};
 
 pub struct TwitchChatEvent<'a> {
     content: EventContent,
-    sender: &'a mut TwitchChatSender,
+    sender: &'a TwitchChatSender,
 }
 
 impl<'a> TwitchChatEvent<'a> {
-    pub fn new(content: EventContent, sender: &'a mut TwitchChatSender) -> Self {
+    pub fn new(content: EventContent, sender: &'a TwitchChatSender) -> Self {
         Self {
             content,
             sender,
