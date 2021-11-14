@@ -1,4 +1,4 @@
-use crate::connect::EventContent;
+use crate::EventContent;
 
 #[derive(Debug)]
 pub enum InternalEventContent {
@@ -33,12 +33,8 @@ mod tests {
         let ping_message = "PING :tmi.twitch.tv";
         let parsed = TwitchChatInternalEvent::new(ping_message);
         assert!(parsed.is_some());
-        if let TwitchChatInternalEvent::Internal(internal_event) = parsed.unwrap() {
-            if let InternalEventContent::Ping(server) = internal_event {
-                assert_eq!(server, "tmi.twitch.tv");
-            } else {
-                unreachable!();
-            }
+        if let TwitchChatInternalEvent::Internal(InternalEventContent::Ping(server)) =  parsed.unwrap() {
+            assert_eq!(server, "tmi.twitch.tv");
         } else {
             unreachable!();
         }

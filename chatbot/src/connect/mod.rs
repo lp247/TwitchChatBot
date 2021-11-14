@@ -9,8 +9,8 @@ pub enum ConnectorError {
     MessageReceiveFailed(String),
     #[error("Sending message failed: {0:?}")]
     MessageSendFailed(String),
-    #[error("Unknown command: {0:?}")]
-    UnknownCommand(String),
+    // #[error("Unknown command: {0:?}")]
+    // UnknownCommand(String),
 }
 
 #[derive(Debug)]
@@ -40,12 +40,12 @@ impl Command {
             match command_text {
                 "help" => Some(Self {
                     commmand_type: CommandType::Help,
-                    options: options,
+                    options,
                     user_name: user_name.to_owned(),
                 }),
                 "info" => Some(Self {
                     commmand_type: CommandType::Info,
-                    options: options,
+                    options,
                     user_name: user_name.to_owned(),
                 }),
                 _ => None,
@@ -67,6 +67,14 @@ impl TextMessage {
             text: text.to_owned(),
             user_name: user_name.to_owned(),
         }
+    }
+
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+    
+    pub fn user_name(&self) -> &str {
+        &self.user_name
     }
 }
 
@@ -155,12 +163,12 @@ impl EventContent {
                 MessageBody => {
                     if codepoint == '!' {
                         return Some(EventContent::Command(Command::new(
-                            &message[i..].trim(),
+                            message[i..].trim(),
                             user_name,
                         )?));
                     } else {
                         return Some(EventContent::TextMessage(TextMessage::new(
-                            &message[i..].trim(),
+                            message[i..].trim(),
                             user_name,
                         )));
                     }
@@ -173,7 +181,7 @@ impl EventContent {
 
 pub trait Event {
     fn content(&self) -> &EventContent;
-    fn respond(&mut self, response: &str) -> Result<(), ConnectorError>;
+    fn respond(&self, response: &str) -> Result<(), ConnectorError>;
 }
 
 pub trait Connector {

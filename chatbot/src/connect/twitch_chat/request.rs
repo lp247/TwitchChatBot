@@ -9,8 +9,8 @@ pub struct TwitchChatEvent<'a> {
 impl<'a> TwitchChatEvent<'a> {
     pub fn new(content: EventContent, sender: &'a mut TwitchChatSender) -> Self {
         Self {
-            content: content,
-            sender: sender,
+            content,
+            sender,
         }
     }
 }
@@ -20,7 +20,7 @@ impl<'a> Event for TwitchChatEvent<'a> {
         &self.content
     }
 
-    fn respond(&mut self, response: &str) -> Result<(), ConnectorError> {
+    fn respond(&self, response: &str) -> Result<(), ConnectorError> {
         self.sender.send_message(response)
     }
 }

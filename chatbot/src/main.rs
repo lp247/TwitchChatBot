@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let info_command_handler = StaticStringCommandHandler::new(info_command_message);
     loop {
         let message = connector.recv_event();
-        if let Ok(mut msg) = message {
+        if let Ok(msg) = message {
             match msg.content() {
                 EventContent::Command(info) => {
                     match info.commmand_type {
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
                 EventContent::Join(_) => (),
                 EventContent::Part(_) => (),
-                EventContent::TextMessage(_) => (),
+                EventContent::TextMessage(tm) => println!("{}: {}", &tm.user_name(), &tm.text()),
             };
         };
     }
