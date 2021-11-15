@@ -10,3 +10,5 @@ Done:
 - [ ] Simplify and fully automate the process for getting the access token
 - [ ] Command options
 - [ ] Create commands on the fly
+- [ ] Viewerlist handler
+- [ ] Slap command

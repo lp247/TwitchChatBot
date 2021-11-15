@@ -50,7 +50,6 @@ impl TwitchChatConnector {
                 .map_err(|err| ConnectorError::MessageReceiveFailed(format!("{:?}", err)))?;
             match owned_message {
                 OwnedMessage::Text(text) => {
-                    println!("{}", text);
                     if let Some(parsed_message) = TwitchChatInternalEvent::new(&text) {
                         match parsed_message {
                             TwitchChatInternalEvent::External(event_content) => {

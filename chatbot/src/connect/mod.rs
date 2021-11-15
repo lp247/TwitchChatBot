@@ -11,7 +11,7 @@ pub enum ConnectorError {
     MessageSendFailed(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum CommandType {
     Help,
     Info,
@@ -29,21 +29,16 @@ impl Command {
         if !text.starts_with('!') {
             None
         } else {
-            let command_end_index = text.find(' ').unwrap_or(text.len() - 1);
-            let command_text = &text[1..command_end_index];
-            let options: Vec<String> = text[(command_end_index + 1)..]
-                .split(' ')
-                .map(String::from)
-                .collect();
-            match command_text {
+            let mut words = text.split(' ');
+            match &words.next()?[1..] {
                 "help" => Some(Self {
                     commmand_type: CommandType::Help,
-                    options,
+                    options: words.map(String::from).collect(),
                     user_name: user_name.to_owned(),
                 }),
                 "info" => Some(Self {
                     commmand_type: CommandType::Info,
-                    options,
+                    options: words.map(String::from).collect(),
                     user_name: user_name.to_owned(),
                 }),
                 _ => None,
@@ -151,6 +146,7 @@ impl EventContent {
                     }
                 }
                 MessageBody => {
+                    // :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!help
                     if codepoint == '!' {
                         return Some(EventContent::Command(Command::new(
                             message[i..].trim(),
@@ -171,7 +167,7 @@ impl EventContent {
 
 #[cfg(test)]
 mod tests {
-    use crate::connect::EventContent;
+    use crate::connect::{Command, CommandType, EventContent};
 
     fn user_message_helper(raw_message: &str, user_name: &str, expected: &str) {
         let parsed = EventContent::new(raw_message);
@@ -198,5 +194,49 @@ mod tests {
         let expected_text = "a function that takes a string and returns the message";
         let expected_user = "carkhy";
         user_message_helper(raw_message, expected_user, expected_text);
+    }
+
+    fn command_helper(
+        raw_message: &str,
+        expected_command_type: CommandType,
+        expected_user_name: &str,
+    ) {
+        let parsed = EventContent::new(raw_message);
+        assert!(parsed.is_some());
+        if let EventContent::Command(command) = parsed.unwrap() {
+            assert_eq!(command.commmand_type, expected_command_type);
+            assert_eq!(command.user_name, expected_user_name);
+            assert_eq!(command.options, Vec::<String>::new());
+        } else {
+            unreachable!();
+        }
+    }
+
+    #[test]
+    fn parsing_help_command_in_event_parser() {
+        let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!help";
+        let expected_command_type = CommandType::Help;
+        let expected_user_name = "carkhy";
+        command_helper(raw_message, expected_command_type, expected_user_name)
+    }
+
+    #[test]
+    fn parsing_info_command_in_event_parser() {
+        let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!info";
+        let expected_command_type = CommandType::Info;
+        let expected_user_name = "carkhy";
+        command_helper(raw_message, expected_command_type, expected_user_name)
+    }
+
+    #[test]
+    fn parsing_help_command_in_command_parser() {
+        let raw_command = "!help";
+        let expected_command_type = CommandType::Help;
+        let parsed = Command::new(raw_command, "testuser");
+        assert!(parsed.is_some());
+        let unwrapped_parsed = parsed.unwrap();
+        assert_eq!(unwrapped_parsed.commmand_type, expected_command_type);
+        assert_eq!(unwrapped_parsed.user_name, "testuser");
+        assert_eq!(unwrapped_parsed.options, Vec::<String>::new());
     }
 }
