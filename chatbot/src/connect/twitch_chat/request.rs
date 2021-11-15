@@ -1,26 +1,17 @@
 use super::sending::TwitchChatSender;
-use crate::connect::{ConnectorError, Event, EventContent};
+use crate::connect::{ConnectorError, EventContent};
 
 pub struct TwitchChatEvent<'a> {
-    content: EventContent,
-    sender: &'a mut TwitchChatSender,
+    pub content: EventContent,
+    sender: &'a TwitchChatSender,
 }
 
 impl<'a> TwitchChatEvent<'a> {
-    pub fn new(content: EventContent, sender: &'a mut TwitchChatSender) -> Self {
-        Self {
-            content: content,
-            sender: sender,
-        }
-    }
-}
-
-impl<'a> Event for TwitchChatEvent<'a> {
-    fn content(&self) -> &EventContent {
-        &self.content
+    pub fn new(content: EventContent, sender: &'a TwitchChatSender) -> Self {
+        Self { content, sender }
     }
 
-    fn respond(&mut self, response: &str) -> Result<(), ConnectorError> {
+    pub fn respond(&self, response: &str) -> Result<(), ConnectorError> {
         self.sender.send_message(response)
     }
 }

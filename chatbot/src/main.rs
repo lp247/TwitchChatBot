@@ -1,7 +1,7 @@
 use connect::EventContent;
 
 use crate::{
-    connect::{CommandType, Connector, TwitchChatConnector},
+    connect::{CommandType, TwitchChatConnector},
     handle::{CommandHandler, StaticStringCommandHandler},
 };
 use std::error::Error;
@@ -24,8 +24,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let info_command_handler = StaticStringCommandHandler::new(info_command_message);
     loop {
         let message = connector.recv_event();
-        if let Ok(mut msg) = message {
-            match msg.content() {
+        if let Ok(msg) = message {
+            match &msg.content {
                 EventContent::Command(info) => {
                     match info.commmand_type {
                         CommandType::Help => {
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 }
                 EventContent::Join(_) => (),
                 EventContent::Part(_) => (),
-                EventContent::TextMessage(_) => (),
+                EventContent::TextMessage(tm) => println!("{}: {}", &tm.user_name, &tm.text),
             };
         };
     }
