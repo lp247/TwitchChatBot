@@ -6,9 +6,17 @@ Done:
 - [X] Remove newlines after messages
 - [X] Move tests from TwitchChatMessage
 
+Tests:
 - [ ] Test Ping-Pong mechanism, What do we do with pings when no events are received? They should still be answered!
-- [ ] Simplify and fully automate the process for getting the access token
+
+New Feature:
 - [ ] Command options
 - [ ] Create commands on the fly
 - [ ] Viewerlist handler
 - [ ] Slap command
+
+Setup:
+- [ ] Simplify and fully automate the process for getting the access token
+- [ ] Add channel as option
+- [ ] .env file
+- [ ] docker setup
