@@ -5,16 +5,16 @@ Done:
 - [X] Implementing chat commands
 - [X] Remove newlines after messages
 - [X] Move tests from TwitchChatMessage
+- [X] Full command parsing tests
 
 Tests:
 - [ ] Test Ping-Pong mechanism, What do we do with pings when no events are received? They should still be answered!
-- [ ] Full command parsing tests
 
 New Feature:
 - [P] Slap command | Split incoming messages by newlines
 - [ ] Command options
-- [ ] Create commands on the fly
 - [ ] Viewerlist handler
+- [ ] Create commands on the fly
 
 Setup:
 - [ ] Simplify and fully automate the process for getting the access token
@@ -22,8 +22,9 @@ Setup:
 - [ ] .env file
 - [ ] docker setup
 
-Miscellaneous:
+Something to think about:
 - [ ] Refcell still needed?
+- [ ] Enable sentences with spaces as single option for some commands
 
 Bugs:
 - [ ] Bot is not responding to multiple fast sent commands
