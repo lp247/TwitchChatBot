@@ -15,6 +15,7 @@ pub enum ConnectorError {
 pub enum CommandType {
     Help,
     Info,
+    Slap,
 }
 
 #[derive(Debug)]
@@ -41,6 +42,11 @@ impl Command {
                     options: words.map(String::from).collect(),
                     user_name: user_name.to_owned(),
                 }),
+                "slap" => Some(Self {
+                    commmand_type: CommandType::Slap,
+                    options: words.map(String::from).collect(),
+                    user_name: user_name.to_owned(),
+                }),
                 _ => None,
             }
         }
@@ -64,7 +70,7 @@ impl TextMessage {
 }
 
 #[derive(Debug)]
-pub struct Part(String);
+pub struct Part(pub String);
 
 impl Part {
     fn new(user_name: &str) -> Self {
@@ -73,7 +79,7 @@ impl Part {
 }
 
 #[derive(Debug)]
-pub struct Join(String);
+pub struct Join(pub String);
 
 impl Join {
     fn new(user_name: &str) -> Self {
@@ -229,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn parsing_help_command_in_command_parser() {
+    fn parsing_help_command_in_command_parser_without_options() {
         let raw_command = "!help";
         let expected_command_type = CommandType::Help;
         let parsed = Command::new(raw_command, "testuser");
@@ -238,5 +244,18 @@ mod tests {
         assert_eq!(unwrapped_parsed.commmand_type, expected_command_type);
         assert_eq!(unwrapped_parsed.user_name, "testuser");
         assert_eq!(unwrapped_parsed.options, Vec::<String>::new());
+    }
+
+    #[test]
+    fn parsing_command_in_command_parser_with_options() {
+        let raw_command = "!help option1 option2";
+        let expected_command_type = CommandType::Help;
+        let expected_options = vec!["option1".to_owned(), "option2".to_owned()];
+        let parsed = Command::new(raw_command, "testuser");
+        assert!(parsed.is_some());
+        let unwrapped_parsed = parsed.unwrap();
+        assert_eq!(unwrapped_parsed.commmand_type, expected_command_type);
+        assert_eq!(unwrapped_parsed.user_name, "testuser");
+        assert_eq!(unwrapped_parsed.options, expected_options);
     }
 }

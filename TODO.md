@@ -8,15 +8,22 @@ Done:
 
 Tests:
 - [ ] Test Ping-Pong mechanism, What do we do with pings when no events are received? They should still be answered!
+- [ ] Full command parsing tests
 
 New Feature:
+- [P] Slap command | Split incoming messages by newlines
 - [ ] Command options
 - [ ] Create commands on the fly
 - [ ] Viewerlist handler
-- [ ] Slap command
 
 Setup:
 - [ ] Simplify and fully automate the process for getting the access token
 - [ ] Add channel as option
 - [ ] .env file
 - [ ] docker setup
+
+Miscellaneous:
+- [ ] Refcell still needed?
+
+Bugs:
+- [ ] Bot is not responding to multiple fast sent commands

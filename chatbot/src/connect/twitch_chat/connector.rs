@@ -1,7 +1,7 @@
-use super::{auth::AccessTokenDispenser, request::TwitchChatEvent, sending::TwitchChatSender};
+use super::{auth::AccessTokenDispenser, sending::TwitchChatSender};
 use crate::connect::{
     twitch_chat::event::{InternalEventContent, TwitchChatInternalEvent},
-    ConnectorError,
+    ConnectorError, EventContent,
 };
 use std::net::TcpStream;
 use websocket::{receiver::Reader, ClientBuilder, OwnedMessage};
@@ -41,7 +41,7 @@ impl TwitchChatConnector {
         self.sender.send_message(message)
     }
 
-    pub fn recv_event(&mut self) -> Result<TwitchChatEvent, ConnectorError> {
+    pub fn recv_event(&mut self) -> Result<EventContent, ConnectorError> {
         let receiver = &mut self.receiver;
         let sender = &mut self.sender;
         loop {
@@ -50,10 +50,11 @@ impl TwitchChatConnector {
                 .map_err(|err| ConnectorError::MessageReceiveFailed(format!("{:?}", err)))?;
             match owned_message {
                 OwnedMessage::Text(text) => {
+                    println!("{}", text);
                     if let Some(parsed_message) = TwitchChatInternalEvent::new(&text) {
                         match parsed_message {
                             TwitchChatInternalEvent::External(event_content) => {
-                                break Ok(TwitchChatEvent::new(event_content, &mut self.sender));
+                                break Ok(event_content);
                             }
                             TwitchChatInternalEvent::Internal(internal_content) => {
                                 match internal_content {
