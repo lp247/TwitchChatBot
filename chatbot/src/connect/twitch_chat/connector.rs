@@ -41,7 +41,7 @@ impl TwitchChatConnector {
         self.sender.send_message(message)
     }
 
-    pub fn recv_event(&mut self) -> Result<EventContent, ConnectorError> {
+    pub fn recv_events(&mut self) -> Result<Vec<EventContent>, ConnectorError> {
         let receiver = &mut self.receiver;
         let sender = &mut self.sender;
         loop {
@@ -51,20 +51,17 @@ impl TwitchChatConnector {
             match owned_message {
                 OwnedMessage::Text(text) => {
                     println!("{}", text);
-                    if let Some(parsed_message) = TwitchChatInternalEvent::new(&text) {
-                        match parsed_message {
-                            TwitchChatInternalEvent::External(event_content) => {
-                                break Ok(event_content);
-                            }
-                            TwitchChatInternalEvent::Internal(internal_content) => {
-                                match internal_content {
-                                    InternalEventContent::Ping(server) => {
-                                        sender.send_raw_message(format!("PONG :{}", server))?
-                                    }
-                                }
-                            }
+                    let events = text.lines().filter_map(TwitchChatInternalEvent::new);
+                    let mut result : Vec<EventContent> = Vec::default();                    
+                    for event in events {
+                        match event {
+                            TwitchChatInternalEvent::External(event_content) => 
+                                result.push(event_content),
+                            TwitchChatInternalEvent::Internal(InternalEventContent::Ping(server)) => 
+                                sender.send_raw_message(format!("PONG :{}", server))?,
                         }
                     }
+                    return Ok(result);
                 }
                 _ => continue,
             }

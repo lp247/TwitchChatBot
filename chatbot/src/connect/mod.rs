@@ -70,29 +70,11 @@ impl TextMessage {
 }
 
 #[derive(Debug)]
-pub struct Part(pub String);
-
-impl Part {
-    fn new(user_name: &str) -> Self {
-        Self(user_name.to_owned())
-    }
-}
-
-#[derive(Debug)]
-pub struct Join(pub String);
-
-impl Join {
-    fn new(user_name: &str) -> Self {
-        Self(user_name.to_owned())
-    }
-}
-
-#[derive(Debug)]
 pub enum EventContent {
     TextMessage(TextMessage),
     Command(Command),
-    Part(Part),
-    Join(Join),
+    Part(String),
+    Join(String),
 }
 
 // Example message: :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :backseating backseating
@@ -138,9 +120,9 @@ impl EventContent {
                                 state = Channel;
                             }
                             // (...) JOIN #<channel>
-                            "JOIN" => return Some(EventContent::Join(Join::new(user_name))),
+                            "JOIN" => return Some(EventContent::Join(user_name.to_string())),
                             // (...) PART #<channel>
-                            "PART" => return Some(EventContent::Part(Part::new(user_name))),
+                            "PART" => return Some(EventContent::Part(user_name.to_string())),
                             // PING :tmi.twitch.tv
                             _ => return None,
                         };
