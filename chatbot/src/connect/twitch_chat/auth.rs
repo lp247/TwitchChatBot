@@ -1,18 +1,14 @@
-use crate::connect::ConnectorError;
+use crate::{app_config::AppConfig, connect::ConnectorError};
 use reqwest::Response;
 use serde_json::{from_str, Value};
-use std::env;
 
 static VALIDATION_URL: &str = "https://id.twitch.tv/oauth2/validate";
 static REDIRECT_URI: &str = "https://localhost:3030";
 
 fn get_from_json<'a, 'b>(val: &'a Value, key: &'b str) -> Result<&'a str, ConnectorError> {
-    Ok(val[key]
-        .as_str()
-        .ok_or(ConnectorError::MessageReceiveFailed(format!(
-            "No field named '{}' in JSON {:?}",
-            key, val,
-        )))?)
+    val[key].as_str().ok_or_else(|| {
+        ConnectorError::MessageReceiveFailed(format!("No field named '{}' in JSON {:?}", key, val,))
+    })
 }
 
 async fn get_json_from_response(response: Response) -> Result<Value, ConnectorError> {
@@ -32,13 +28,15 @@ fn extract_code_from_url(request_url: &str) -> &str {
 }
 
 pub struct AccessTokenDispenser {
+    app_config: AppConfig,
     access_token: Option<String>,
     refresh_token: Option<String>,
 }
 
 impl AccessTokenDispenser {
-    pub fn new() -> Self {
+    pub fn new(app_config: AppConfig) -> Self {
         Self {
+            app_config,
             access_token: None,
             refresh_token: None,
         }
@@ -47,6 +45,7 @@ impl AccessTokenDispenser {
     fn retrieve_code(&self) -> Result<String, ConnectorError> {
         let ssl_config = tiny_http::SslConfig {
             certificate: include_bytes!("../../../certificates/cert.crt").to_vec(),
+            // TODO: security: must not include private keys in a binary !
             private_key: include_bytes!("../../../certificates/cert.key").to_vec(),
         };
         let server = tiny_http::Server::https("0.0.0.0:3030", ssl_config).map_err(|err| {
@@ -55,7 +54,10 @@ impl AccessTokenDispenser {
                 err
             ))
         })?;
-        println!("Open link https://id.twitch.tv/oauth2/authorize?client_id=3rmzgtjlcc01fup7gjs99ua4uoof3g&redirect_uri=https://localhost:3030&response_type=code&scope=chat:read%20chat:edit");
+        println!(
+            "Open link https://id.twitch.tv/oauth2/authorize?client_id={}&redirect_uri=https://localhost:3030&response_type=code&scope=chat:read%20chat:edit",
+            self.app_config.twitch_client_id(),
+        );
         let request: tiny_http::Request = server.recv().map_err(|err| {
             ConnectorError::MessageReceiveFailed(format!(
                 "Could not receive request with code: {:?}",
@@ -97,7 +99,13 @@ impl AccessTokenDispenser {
 
     async fn renew(&mut self) -> Result<(), ConnectorError> {
         let code = self.retrieve_code()?;
-        let uri = format!("https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&code={}&grant_type=authorization_code&redirect_uri={}", env::var("TWITCH_AUTH_CLIENT_ID").unwrap(), env::var("TWITCH_AUTH_CLIENT_SECRET").unwrap(), code, REDIRECT_URI);
+        let uri = format!(
+            "https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&code={}&grant_type=authorization_code&redirect_uri={}",
+            self.app_config.twitch_client_id(),
+            self.app_config.twitch_client_secret(),
+            code,
+            REDIRECT_URI,
+        );
         let client = reqwest::Client::new();
         let response = client.post(uri).send().await.map_err(|err| {
             ConnectorError::MessageReceiveFailed(format!(
