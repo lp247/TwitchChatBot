@@ -1,6 +1,6 @@
 use chat_bot::ChatBot;
 use connect::TwitchChatConnector;
-use std::error::Error;
+use std::{error::Error, sync::Arc};
 
 //use std::env;
 use app_config::AppConfig;
@@ -13,7 +13,7 @@ pub mod app_config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let app_config = AppConfig::new()?;
+    let app_config = Arc::new(AppConfig::new()?);
     
     use chat_bot::ChatBotCommand::*;
     

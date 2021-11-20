@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{app_config::AppConfig, connect::ConnectorError};
 use reqwest::Response;
 use serde_json::{from_str, Value};
@@ -28,13 +30,13 @@ fn extract_code_from_url(request_url: &str) -> &str {
 }
 
 pub struct AccessTokenDispenser {
-    app_config: AppConfig,
+    app_config: Arc<AppConfig>,
     access_token: Option<String>,
     refresh_token: Option<String>,
 }
 
 impl AccessTokenDispenser {
-    pub fn new(app_config: AppConfig) -> Self {
+    pub fn new(app_config: Arc<AppConfig>) -> Self {
         Self {
             app_config,
             access_token: None,

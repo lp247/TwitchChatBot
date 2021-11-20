@@ -3,7 +3,7 @@ use crate::{app_config::AppConfig, connect::{
     twitch_chat::event::{InternalEventContent, TwitchChatInternalEvent},
     ConnectorError, EventContent,
 }};
-use std::net::TcpStream;
+use std::{net::TcpStream, sync::Arc};
 use websocket::{receiver::Reader, ClientBuilder, OwnedMessage};
 
 pub struct TwitchChatConnector {
@@ -13,7 +13,7 @@ pub struct TwitchChatConnector {
 }
 
 impl TwitchChatConnector {
-    pub fn new(app_config: AppConfig) -> Self {
+    pub fn new(app_config: Arc<AppConfig>) -> Self {
         let chat_client = ClientBuilder::new("ws://irc-ws.chat.twitch.tv:80")
             .unwrap()
             .connect_insecure()
