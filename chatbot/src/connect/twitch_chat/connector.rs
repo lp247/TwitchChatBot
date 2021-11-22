@@ -1,9 +1,9 @@
 use super::{auth::AccessTokenDispenser, sending::TwitchChatSender};
-use crate::connect::{
+use crate::{app_config::AppConfig, connect::{
     twitch_chat::event::{InternalEventContent, TwitchChatInternalEvent},
     ConnectorError, EventContent,
-};
-use std::net::TcpStream;
+}};
+use std::{net::TcpStream, sync::Arc};
 use websocket::{receiver::Reader, ClientBuilder, OwnedMessage};
 
 pub struct TwitchChatConnector {
@@ -13,7 +13,7 @@ pub struct TwitchChatConnector {
 }
 
 impl TwitchChatConnector {
-    pub fn new(channel: &str) -> Self {
+    pub fn new(app_config: Arc<AppConfig>) -> Self {
         let chat_client = ClientBuilder::new("ws://irc-ws.chat.twitch.tv:80")
             .unwrap()
             .connect_insecure()
@@ -21,8 +21,8 @@ impl TwitchChatConnector {
         let (receiver, sender) = chat_client.split().unwrap();
         Self {
             receiver,
-            sender: TwitchChatSender::new(sender, channel.to_owned()),
-            access_token_dispenser: AccessTokenDispenser::new(),
+            sender: TwitchChatSender::new(sender, app_config.clone()),
+            access_token_dispenser: AccessTokenDispenser::new(app_config),
         }
     }
 

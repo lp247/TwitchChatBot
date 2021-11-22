@@ -1,24 +1,23 @@
 use chat_bot::ChatBot;
 use connect::TwitchChatConnector;
-use std::error::Error;
-use dotenv::dotenv;
-use std::env;
+use std::{error::Error, sync::Arc};
+
+//use std::env;
+use app_config::AppConfig;
 
 extern crate websocket;
 
 mod chat_bot;
 mod connect;
+pub mod app_config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let _ = dotenv(); // "someone" isn't using this. We'll not say who that is
-    
-    let channel_name = env::var("TWITCH_CHANNEL")
-        .unwrap_or_else(|_| "captaincallback".to_string());
+    let app_config = Arc::new(AppConfig::new()?);
     
     use chat_bot::ChatBotCommand::*;
     
-    let mut connector = TwitchChatConnector::new(&channel_name);
+    let mut connector = TwitchChatConnector::new(app_config);
     connector.initialize().await?;
     connector.send_message("Hello, world!")?;
     //self.connector.send_message("/followers")?; // not sure why we need this
