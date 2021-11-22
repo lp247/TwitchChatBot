@@ -114,28 +114,30 @@ mod testing {
     #[test]
     fn invalid_slapping() {
         let mut bot = ChatBot::new();
-        let result = bot.handle_event(
-            EventContent::Command(
-                Command{
-                    user_name: "CaptainCallback".to_string(),
-                    commmand_type: CommandType::Slap,
-                    options: vec!["Carkhy".to_string()],
-                }));
+        let result = bot.handle_event(EventContent::Command(Command {
+            user_name: "CaptainCallback".to_string(),
+            commmand_type: CommandType::Slap,
+            options: vec!["Carkhy".to_string()],
+        }));
         assert!(matches!(result, None));
     }
     #[test]
     fn abstraction_detected() {
         let mut bot = ChatBot::new();
         bot.handle_event(EventContent::Join(String::from("CaptainCallback")));
-        let result = bot.handle_event(
-            EventContent::Command(
-                Command{
-                    user_name: "Carkhy".to_string(),
-                    commmand_type: CommandType::Slap,
-                    options: vec!["CaptainCallback".to_string()],
-                }));
+        let result = bot.handle_event(EventContent::Command(Command {
+            user_name: "Carkhy".to_string(),
+            commmand_type: CommandType::Slap,
+            options: vec!["CaptainCallback".to_string()],
+        }));
         println!("{:#?}", result);
-        println!("{}", format!("{} slaps {} around a bit with a large trout", "Carkhy", "CaptainCallback"));
+        println!(
+            "{}",
+            format!(
+                "{} slaps {} around a bit with a large trout",
+                "Carkhy", "CaptainCallback"
+            )
+        );
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
                          if message == format!("{} slaps {} around a bit with a large trout", "Carkhy", "CaptainCallback")));
     }

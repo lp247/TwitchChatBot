@@ -16,7 +16,11 @@ impl TwitchChatSender {
     }
 
     pub fn send_message(&self, msg: &str) -> Result<(), ConnectorError> {
-        self.send_raw_message(format!("PRIVMSG #{} :{}", self.app_config.channel_name(), msg))
+        self.send_raw_message(format!(
+            "PRIVMSG #{} :{}",
+            self.app_config.channel_name(),
+            msg
+        ))
     }
 
     pub fn send_raw_message(&self, message: String) -> Result<(), ConnectorError> {
@@ -33,6 +37,7 @@ impl TwitchChatSender {
         self.send_raw_message(format!("PASS oauth:{}", access_token))?;
         self.send_raw_message(format!("NICK {}", self.app_config.bot_user_name()))?;
         self.send_raw_message(format!("JOIN #{}", self.app_config.channel_name()))?;
-        self.send_raw_message("CAP REQ :twitch.tv/membership".to_owned())
+        self.send_raw_message("CAP REQ :twitch.tv/membership".to_owned())?;
+        self.send_raw_message("CAP REQ :twitch.tv/tags".to_owned())
     }
 }

@@ -1,5 +1,6 @@
 mod twitch_chat;
 
+use std::collections::HashMap;
 use thiserror::Error;
 pub use twitch_chat::TwitchChatConnector;
 
@@ -69,6 +70,19 @@ impl TextMessage {
     }
 }
 
+fn parse_tags(tags_string: &str) -> HashMap<String, String> {
+    tags_string
+        .split(';')
+        .map(|key_val_pair| {
+            let mut key_val_split = key_val_pair.split('=');
+            return (
+                key_val_split.next().unwrap_or_default().to_owned(),
+                key_val_split.next().unwrap_or_default().to_owned(),
+            );
+        })
+        .collect()
+}
+
 #[derive(Debug)]
 pub enum EventContent {
     TextMessage(TextMessage),
@@ -81,6 +95,8 @@ pub enum EventContent {
 impl EventContent {
     fn new(message: &str) -> Option<Self> {
         enum ParsingState {
+            Start,
+            Tags,
             UserName,
             AdditionalUserInfo,
             MessageToken,
@@ -89,18 +105,34 @@ impl EventContent {
         }
         use ParsingState::*;
 
-        let mut state = UserName;
+        let mut state = Start;
         let mut user_name = &message[0..0];
         let mut marker = 0;
+        let mut tags_map = HashMap::<String, String>::new();
 
         for (i, codepoint) in message.char_indices() {
             match state {
+                Start => match codepoint {
+                    '@' => {
+                        state = Tags;
+                    }
+                    ':' => {
+                        state = UserName;
+                    }
+                    _ => return None,
+                },
+                // @badge-info=;badges=;client-nonce=1e51cee7513a4516545bbc36a22f27eb;color=;display-name=carkhy;emotes=;first-msg=0;flags=;id=60904094-3684-4871-9e8c-1400648a804d;mod=0;room-id=120630112;subscriber=0;tmi-sent-ts=1637614002702;turbo=0;user-id=70346833;user-type= :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :copy/paste that in your code to keep that valuable test case
+                Tags => {
+                    if codepoint == ' ' {
+                        state = UserName;
+                        tags_map = parse_tags(&message[1..i]);
+                    }
+                }
                 // :carkhy!carkhy@carkhy.tmi.twitch.tv
                 UserName => match codepoint {
-                    ':' => marker = i + 1,
                     ' ' => return None,
                     '!' => {
-                        user_name = &message[marker..i];
+                        user_name = &message[1..i];
                         state = AdditionalUserInfo;
                     }
                     _ => (),
