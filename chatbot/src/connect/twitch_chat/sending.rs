@@ -1,4 +1,4 @@
-use crate::{app_config::AppConfig, connect::ConnectorError};
+use crate::{app_config::AppConfig, connect::error::ConnectorError};
 use std::{cell::RefCell, net::TcpStream, sync::Arc};
 use websocket::{sync::Writer, Message};
 

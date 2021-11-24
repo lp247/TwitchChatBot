@@ -1,4 +1,4 @@
-use crate::connect::EventContent;
+use crate::connect::event_content::EventContent;
 
 #[derive(Debug)]
 pub enum InternalEventContent {
@@ -13,7 +13,7 @@ pub enum TwitchChatInternalEvent {
 
 impl TwitchChatInternalEvent {
     pub fn new(s: &str) -> Option<Self> {
-        if s.starts_with(':') {
+        if s.starts_with(':') || s.starts_with("@") {
             Some(Self::External(EventContent::new(s)?))
         } else {
             s.strip_prefix("PING :")

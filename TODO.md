@@ -14,6 +14,7 @@ Done:
 
 Tests:
 - [ ] Test Ping-Pong mechanism, What do we do with pings when no events are received? They should still be answered!
+- [ ] tests for TwitchChatInternalEvent
 
 New Feature:
 - [ ] User management (with command access rights)
@@ -33,7 +34,9 @@ Setup:
 Something to think about:
 - [ ] Refcell still needed?
 - [ ] Enable sentences with spaces as single option for some commands
+- [ ] Can display names really be only upper case versions of the user name? If not, what else should be considered?
 
 Bugs:
 - [ ] Bot is not responding to multiple fast sent commands
 - [ ] You can slap yourself!!!
+- [ ] slapping is case sensitive

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{app_config::AppConfig, connect::ConnectorError};
+use crate::{app_config::AppConfig, connect::error::ConnectorError};
 use reqwest::Response;
 use serde_json::{from_str, Value};
 

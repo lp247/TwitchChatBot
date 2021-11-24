@@ -78,9 +78,9 @@ impl ChatBot {
 
 #[cfg(test)]
 mod testing {
-    use crate::connect::TextMessage;
-
     use super::*;
+    use crate::connect::TextMessage;
+    use std::collections::HashMap;
 
     // It's now easy to test without connecting
     #[test]
@@ -91,6 +91,7 @@ mod testing {
         assert_eq!(bot.chatters.len(), 1);
         assert_eq!(bot.chatters.get("Carkhy").unwrap(), "Carkhy");
     }
+
     #[test]
     fn test_part() {
         let mut bot = ChatBot::new();
@@ -100,17 +101,20 @@ mod testing {
         assert_eq!(bot.chatters.len(), 0);
         assert!(matches!(bot.chatters.get("Carkhy"), None));
     }
+
     #[test]
     fn test_text_message() {
         let mut bot = ChatBot::new();
         let result = bot.handle_event(EventContent::TextMessage(TextMessage {
             text: "Hello".to_string(),
             user_name: "Carkhy".to_string(),
+            tags: HashMap::<String, String>::new(),
         }));
         assert!(
             matches!(result, Some(ChatBotCommand::LogTextMessage(message)) if message == "Carkhy: Hello")
         );
     }
+
     #[test]
     fn invalid_slapping() {
         let mut bot = ChatBot::new();
@@ -118,17 +122,20 @@ mod testing {
             user_name: "CaptainCallback".to_string(),
             commmand_type: CommandType::Slap,
             options: vec!["Carkhy".to_string()],
+            tags: HashMap::<String, String>::new(),
         }));
         assert!(matches!(result, None));
     }
+
     #[test]
-    fn abstraction_detected() {
+    fn valid_slapping_when_abstraction_detected() {
         let mut bot = ChatBot::new();
         bot.handle_event(EventContent::Join(String::from("CaptainCallback")));
         let result = bot.handle_event(EventContent::Command(Command {
             user_name: "Carkhy".to_string(),
             commmand_type: CommandType::Slap,
             options: vec!["CaptainCallback".to_string()],
+            tags: HashMap::<String, String>::new(),
         }));
         println!("{:#?}", result);
         println!(

@@ -1,8 +1,12 @@
 use super::{auth::AccessTokenDispenser, sending::TwitchChatSender};
-use crate::{app_config::AppConfig, connect::{
-    twitch_chat::event::{InternalEventContent, TwitchChatInternalEvent},
-    ConnectorError, EventContent,
-}};
+use crate::{
+    app_config::AppConfig,
+    connect::{
+        error::ConnectorError,
+        event_content::EventContent,
+        twitch_chat::event::{InternalEventContent, TwitchChatInternalEvent},
+    },
+};
 use std::{net::TcpStream, sync::Arc};
 use websocket::{receiver::Reader, ClientBuilder, OwnedMessage};
 
@@ -50,15 +54,18 @@ impl TwitchChatConnector {
                 .map_err(|err| ConnectorError::MessageReceiveFailed(format!("{:?}", err)))?;
             match owned_message {
                 OwnedMessage::Text(text) => {
-                    println!("{}", text);
+                    println!("New websocket message: {}", text);
                     let events = text.lines().filter_map(TwitchChatInternalEvent::new);
-                    let mut result : Vec<EventContent> = Vec::default();                    
+                    let mut result: Vec<EventContent> = Vec::default();
                     for event in events {
                         match event {
-                            TwitchChatInternalEvent::External(event_content) => 
-                                result.push(event_content),
-                            TwitchChatInternalEvent::Internal(InternalEventContent::Ping(server)) => 
-                                sender.send_raw_message(format!("PONG :{}", server))?,
+                            TwitchChatInternalEvent::External(event_content) => {
+                                println!("Got event {:?}", event_content);
+                                result.push(event_content)
+                            }
+                            TwitchChatInternalEvent::Internal(InternalEventContent::Ping(
+                                server,
+                            )) => sender.send_raw_message(format!("PONG :{}", server))?,
                         }
                     }
                     return Ok(result);
