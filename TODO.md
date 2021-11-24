@@ -26,6 +26,7 @@ New Feature:
 - [ ] Management UI
 - [ ] Viewer Statistics
 - [ ] Chat logs
+- [ ] Discord command (!discord; and maybe also timed repetition)
 
 Setup:
 - [ ] Simplify and fully automate the process for getting the access token
