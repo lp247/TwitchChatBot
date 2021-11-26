@@ -11,14 +11,14 @@ Done:
 - [X] Viewerlist handler
 - [X] .env file
 - [X] Add channel as option
+- [X] Dynamic commands (on the fly)
 
 Tests:
 - [ ] Test Ping-Pong mechanism, What do we do with pings when no events are received? They should still be answered!
 - [ ] tests for TwitchChatInternalEvent
+- [ ] Test user management (with command access rights)
 
 New Feature:
-- [ ] User management (with command access rights)
-- [ ] Dynamic commands (on the fly)
 - [ ] Timed repetitions
 - [ ] Respect chat message rate limits
 - [ ] Spam protection (machine learning?)

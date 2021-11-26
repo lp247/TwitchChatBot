@@ -106,7 +106,7 @@ impl EventContent {
                             message[i..].trim(),
                             user_name,
                             tags_map,
-                        )?));
+                        )));
                     } else {
                         return Some(EventContent::TextMessage(TextMessage::new(
                             message[i..].trim(),
@@ -124,7 +124,6 @@ impl EventContent {
 #[cfg(test)]
 mod tests {
     use super::EventContent;
-    use crate::connect::command::CommandType;
     use std::collections::HashMap;
 
     fn user_message_helper(
@@ -170,14 +169,14 @@ mod tests {
 
     fn command_helper(
         raw_message: &str,
-        expected_command_type: CommandType,
+        expected_command: &str,
         expected_user_name: &str,
         expected_tags: &HashMap<String, String>,
     ) {
         let parsed = EventContent::new(raw_message);
         assert!(parsed.is_some());
         if let EventContent::Command(command) = parsed.unwrap() {
-            assert_eq!(command.commmand_type, expected_command_type);
+            assert_eq!(command.name, expected_command);
             assert_eq!(command.user_name, expected_user_name);
             assert_eq!(command.options, Vec::<String>::new());
             assert_eq!(command.tags, *expected_tags);
@@ -189,7 +188,7 @@ mod tests {
     #[test]
     fn parsing_help_command_in_event_parser() {
         let raw_message = "@tag1=something;tag2= :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!help";
-        let expected_command_type = CommandType::Help;
+        let expected_command = "help";
         let expected_user_name = "carkhy";
         let expected_tags: HashMap<String, String> = HashMap::from([
             ("tag1".to_owned(), "something".to_owned()),
@@ -197,7 +196,7 @@ mod tests {
         ]);
         command_helper(
             raw_message,
-            expected_command_type,
+            expected_command,
             expected_user_name,
             &expected_tags,
         );
@@ -206,7 +205,7 @@ mod tests {
     #[test]
     fn parsing_info_command_in_event_parser() {
         let raw_message = "@tag1=something;tag2= :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!info";
-        let expected_command_type = CommandType::Info;
+        let expected_command = "info";
         let expected_user_name = "carkhy";
         let expected_tags: HashMap<String, String> = HashMap::from([
             ("tag1".to_owned(), "something".to_owned()),
@@ -214,7 +213,7 @@ mod tests {
         ]);
         command_helper(
             raw_message,
-            expected_command_type,
+            expected_command,
             expected_user_name,
             &expected_tags,
         );
