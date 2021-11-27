@@ -1,14 +1,14 @@
 use crate::{app_config::AppConfig, connect::error::ConnectorError};
-use std::{cell::RefCell, net::TcpStream, sync::Arc};
+use std::{cell::RefCell, net::TcpStream};
 use websocket::{sync::Writer, Message};
 
-pub struct TwitchChatSender {
+pub struct TwitchChatSender<'a> {
     sender: RefCell<Writer<TcpStream>>,
-    app_config: Arc<AppConfig>,
+    app_config: &'a AppConfig,
 }
 
-impl TwitchChatSender {
-    pub fn new(sender: Writer<TcpStream>, app_config: Arc<AppConfig>) -> Self {
+impl<'a> TwitchChatSender<'a> {
+    pub fn new(sender: Writer<TcpStream>, app_config: &'a AppConfig) -> Self {
         Self {
             sender: RefCell::new(sender),
             app_config,

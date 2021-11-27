@@ -7,17 +7,17 @@ use crate::{
         twitch_chat::event::{InternalEventContent, TwitchChatInternalEvent},
     },
 };
-use std::{net::TcpStream, sync::Arc};
+use std::net::TcpStream;
 use websocket::{receiver::Reader, ClientBuilder, OwnedMessage};
 
-pub struct TwitchChatConnector {
+pub struct TwitchChatConnector<'a> {
     receiver: Reader<TcpStream>,
-    sender: TwitchChatSender,
-    access_token_dispenser: AccessTokenDispenser,
+    sender: TwitchChatSender<'a>,
+    access_token_dispenser: AccessTokenDispenser<'a>,
 }
 
-impl TwitchChatConnector {
-    pub fn new(app_config: Arc<AppConfig>) -> Self {
+impl<'a> TwitchChatConnector<'a> {
+    pub fn new(app_config: &'a AppConfig) -> Self {
         let chat_client = ClientBuilder::new("ws://irc-ws.chat.twitch.tv:80")
             .unwrap()
             .connect_insecure()
@@ -25,7 +25,7 @@ impl TwitchChatConnector {
         let (receiver, sender) = chat_client.split().unwrap();
         Self {
             receiver,
-            sender: TwitchChatSender::new(sender, app_config.clone()),
+            sender: TwitchChatSender::new(sender, app_config),
             access_token_dispenser: AccessTokenDispenser::new(app_config),
         }
     }
