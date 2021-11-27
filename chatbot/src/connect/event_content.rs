@@ -102,11 +102,11 @@ impl EventContent {
                 MessageBody => {
                     // :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!help
                     if codepoint == '!' {
-                        return Some(EventContent::Command(Command::new(
-                            message[i..].trim(),
+                        return Command::new(
+                            message[i+1..].trim(),
                             user_name,
                             tags_map,
-                        )));
+                        ).map(EventContent::Command);
                     } else {
                         return Some(EventContent::TextMessage(TextMessage::new(
                             message[i..].trim(),
