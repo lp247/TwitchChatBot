@@ -12,6 +12,7 @@ Done:
 - [X] .env file
 - [X] Add channel as option
 - [X] Dynamic commands (on the fly)
+- [X] docker setup
 
 Tests:
 - [ ] Test Ping-Pong mechanism, What do we do with pings when no events are received? They should still be answered!
@@ -30,7 +31,6 @@ New Feature:
 
 Setup:
 - [ ] Simplify and fully automate the process for getting the access token
-- [ ] docker setup
 
 Something to think about:
 - [ ] Refcell still needed?
