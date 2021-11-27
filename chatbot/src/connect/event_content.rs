@@ -7,10 +7,10 @@ fn parse_tags(tags_string: &str) -> HashMap<String, String> {
         .split(';')
         .map(|key_val_pair| {
             let mut key_val_split = key_val_pair.split('=');
-            return (
+            (
                 key_val_split.next().unwrap_or_default().to_owned(),
                 key_val_split.next().unwrap_or_default().to_owned(),
-            );
+            )
         })
         .collect()
 }
