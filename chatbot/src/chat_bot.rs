@@ -30,8 +30,8 @@ const REMOVE_COMMAND_SUCCESSFUL_MESSAGE: &str = "The command has been removed su
 impl ChatBot {
     pub fn new() -> Self {
         Self {
-            chatters: HashSet::<String>::new(),
-            dynamic_commands: HashMap::<String, String>::new(),
+            chatters: HashSet::default(),
+            dynamic_commands: HashMap::default(),
         }
     }
 
@@ -70,7 +70,7 @@ impl ChatBot {
                 }
             }
             "removecommand" => {
-                if command.options.len() < 1 {
+                if command.options.is_empty() {
                     Some(SendMessage(REMOVE_COMMAND_NO_OPTION_MESSAGE.to_string()))
                 } else {
                     let command_name = &command.options[0];
