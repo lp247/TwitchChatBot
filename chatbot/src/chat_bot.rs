@@ -26,6 +26,11 @@ const NEW_COMMAND_NO_OPTION_MESSAGE: &str =
 const REMOVE_COMMAND_NO_OPTION_MESSAGE: &str =
     "removecommand requires at least one option but none was given.";
 const REMOVE_COMMAND_SUCCESSFUL_MESSAGE: &str = "The command has been removed successfully.";
+const DENIED_MESSAGE: &str = "Denied: i ought to !slap you...";
+
+fn str_msg(string: &str) -> Option<ChatBotCommand> {
+    Some(ChatBotCommand::SendMessage(string.to_string()))
+}
 
 impl ChatBot {
     pub fn new() -> Self {
@@ -39,8 +44,8 @@ impl ChatBot {
         println!("Executing this command: {:#?}", command);
         use ChatBotCommand::*;
         match command.name.as_str() {
-            "help" => Some(SendMessage(HELP_MESSAGE.to_string())),
-            "info" => Some(SendMessage(INFO_MESSAGE.to_string())),
+            "help" => str_msg(HELP_MESSAGE),
+            "info" => str_msg(INFO_MESSAGE),
             "slap" => {
                 println!("Slapping one of these guys \n{:#?}", self.chatters);
                 // Notice how we can now do everything in a single expression
@@ -59,30 +64,36 @@ impl ChatBot {
                     })
             }
             "newcommand" => {
-                if command.options.len() < 2 {
-                    Some(SendMessage(NEW_COMMAND_NO_OPTION_MESSAGE.to_string()))
+                if command.is_from_a_mod() {
+                    if command.options.len() < 2 {
+                        str_msg(NEW_COMMAND_NO_OPTION_MESSAGE)
+                    } else {
+                        let new_command_name = &command.options[0];
+                        let new_command_message = command.options[1..].join(" ");
+                        self.dynamic_commands
+                            .insert(new_command_name.to_owned(), new_command_message);
+                        str_msg(NEW_COMMAND_SUCCESSFUL_MESSAGE)
+                    }
                 } else {
-                    let new_command_name = &command.options[0];
-                    let new_command_message = command.options[1..].join(" ");
-                    self.dynamic_commands
-                        .insert(new_command_name.to_owned(), new_command_message);
-                    Some(SendMessage(NEW_COMMAND_SUCCESSFUL_MESSAGE.to_string()))
+                    str_msg(DENIED_MESSAGE)
                 }
             }
             "removecommand" => {
-                if command.options.is_empty() {
-                    Some(SendMessage(REMOVE_COMMAND_NO_OPTION_MESSAGE.to_string()))
+                if command.is_from_a_mod() {
+                    if command.options.is_empty() {
+                        str_msg(REMOVE_COMMAND_NO_OPTION_MESSAGE)
+                    } else {
+                        let command_name = &command.options[0];
+                        self.dynamic_commands.remove(command_name);
+                        str_msg(REMOVE_COMMAND_SUCCESSFUL_MESSAGE)
+                    }
                 } else {
-                    let command_name = &command.options[0];
-                    self.dynamic_commands.remove(command_name);
-                    Some(SendMessage(REMOVE_COMMAND_SUCCESSFUL_MESSAGE.to_string()))
+                    str_msg(DENIED_MESSAGE)
                 }
             }
-            _ => command
-                .tags
-                .get("mod")
-                .map(|val| val == "1")
-                .and(self.dynamic_commands.get(command.name.as_str()))
+            command_name => self
+                .dynamic_commands
+                .get(command_name)
                 .map(String::from)
                 .map(SendMessage),
         }
@@ -182,5 +193,51 @@ mod testing {
         );
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
                          if message == format!("{} slaps {} around a bit with a large trout", "Carkhy", "CaptainCallback")));
+    }
+
+    #[test]
+    fn nonmods_cannot_newcommand() {
+        let mut bot = ChatBot::new();
+        let result = bot.handle_event(EventContent::Command(Command {
+            user_name: "CaptainCallback".to_string(),
+            name: "newcommand".to_owned(),
+            options: vec!["test".to_string(), "testing".to_string()],
+            tags: HashMap::<String, String>::new(),
+        }));
+        assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
+                         if message == DENIED_MESSAGE));
+        assert!(!bot.dynamic_commands.contains_key("test"));
+    }
+
+    #[test]
+    fn broadcaster_can_newcommand() {
+        let mut bot = ChatBot::new();
+        let result = bot.handle_event(EventContent::Command(Command {
+            user_name: "CaptainCallback".to_string(),
+            name: "newcommand".to_owned(),
+            options: vec!["test".to_string(), "testing".to_string()],
+            tags: vec![("badges".to_string(), "broadcaster/1".to_string())]
+                .into_iter()
+                .collect(),
+        }));
+        assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
+                         if message != DENIED_MESSAGE));
+        assert!(bot.dynamic_commands.contains_key("test"));
+    }
+
+    #[test]
+    fn mods_can_newcommand() {
+        let mut bot = ChatBot::new();
+        let result = bot.handle_event(EventContent::Command(Command {
+            user_name: "CaptainCallback".to_string(),
+            name: "newcommand".to_owned(),
+            options: vec!["test2".to_string(), "testing2".to_string()],
+            tags: vec![("badges".to_string(), "moderator/1".to_string())]
+                .into_iter()
+                .collect(),
+        }));
+        assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
+                         if message != DENIED_MESSAGE));
+        assert!(bot.dynamic_commands.contains_key("test2"));
     }
 }
