@@ -22,6 +22,18 @@ impl Command {
             })
         }
     }
+
+    pub fn is_from_a_mod(&self) -> bool {
+        // this is ugly because i have no time today,
+        // we really should have a proper list of badges in our Command struct
+        // then again it's maybe useless to always do that parsing as most commands will
+        // not need to be protected
+        if let Some(badges) = self.tags.get("badges") {
+            badges.contains("broadcaster") || badges.contains("moderator")
+        } else {
+            false
+        }
+    }
 }
 
 #[cfg(test)]
@@ -80,5 +92,23 @@ mod tests {
             Command::new(raw_command, "carkhy", HashMap::default()),
             None
         ));
+    }
+
+    #[test]
+    fn ensure_is_from_a_mod_works() {
+        let raw = "foo";
+        let tags = HashMap::default();
+        let parsed = Command::new(raw, "user", tags).unwrap();
+        assert!(!parsed.is_from_a_mod());
+
+        let mut tags = HashMap::default();
+        tags.insert("badges".to_string(), "someotherbadge/2,broadcaster/1".to_string());
+        let parsed = Command::new(raw, "user", tags).unwrap();
+        assert!(parsed.is_from_a_mod());
+
+        let mut tags = HashMap::default();
+        tags.insert("badges".to_string(), "someotherbadge/2,moderator/1".to_string());
+        let parsed = Command::new(raw, "user", tags).unwrap();
+        assert!(parsed.is_from_a_mod());
     }
 }
