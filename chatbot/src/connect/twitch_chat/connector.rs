@@ -14,40 +14,35 @@ pub struct TwitchChatConnector<'a> {
     receiver: Reader<TcpStream>,
     sender: Writer<TcpStream>,
     app_config: &'a AppConfig,
-    access_token_dispenser: AccessTokenDispenser<'a>,
 }
 
 impl<'a> TwitchChatConnector<'a> {
-    pub fn new(app_config: &'a AppConfig) -> Self {
+    pub async fn new(app_config: &'a AppConfig) -> TwitchChatConnector<'a> {
         let chat_client = ClientBuilder::new("ws://irc-ws.chat.twitch.tv:80")
             .unwrap()
             .connect_insecure()
             .unwrap();
-        let (receiver, sender) = chat_client.split().unwrap();
-        Self {
-            receiver,
-            sender,
-            app_config,
-            access_token_dispenser: AccessTokenDispenser::new(app_config),
-        }
-    }
-
-    pub async fn initialize(&mut self) -> Result<(), ConnectorError> {
-        let access_token: String = self
-            .access_token_dispenser
+        let (receiver, mut sender) = chat_client.split().unwrap();
+        let mut access_token_dispenser = AccessTokenDispenser::new(app_config);
+        let access_token: String = access_token_dispenser
             .get()
             .await
             .expect("Could not get access token")
             .to_owned();
         handle_multiple_sending_tasks(
-            &mut self.sender,
+            &mut sender,
             get_login_tasks(
                 &access_token,
-                self.app_config.bot_user_name(),
-                self.app_config.channel_name(),
+                app_config.bot_user_name(),
+                app_config.channel_name(),
             ),
-        )?;
-        Ok(())
+        )
+        .expect("Could not log in");
+        Self {
+            receiver,
+            sender,
+            app_config,
+        }
     }
 
     pub fn send_message(&mut self, message: &str) -> Result<(), ConnectorError> {

@@ -15,8 +15,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     use chat_bot::ChatBotCommand::*;
 
-    let mut connector = TwitchChatConnector::new(&app_config);
-    connector.initialize().await?;
+    let mut connector = TwitchChatConnector::new(&app_config).await;
     connector.send_message("Hello, world!")?;
     //self.connector.send_message("/followers")?; // not sure why we need this
 
