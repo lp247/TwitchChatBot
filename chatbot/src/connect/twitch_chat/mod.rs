@@ -1,6 +1,6 @@
 mod auth;
 mod connector;
-mod event;
-mod sending;
+mod receive;
+mod send;
 
 pub use connector::TwitchChatConnector;

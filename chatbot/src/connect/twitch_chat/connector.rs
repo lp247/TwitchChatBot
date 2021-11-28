@@ -1,18 +1,19 @@
-use super::{auth::AccessTokenDispenser, sending::TwitchChatSender};
+use super::{
+    auth::AccessTokenDispenser,
+    receive::{handle_receiving_events, ConnectorEvent, ReceiveEvent},
+    send::{get_login_tasks, handle_multiple_sending_tasks, handle_sending_task, SendTask},
+};
 use crate::{
     app_config::AppConfig,
-    connect::{
-        error::ConnectorError,
-        event_content::EventContent,
-        twitch_chat::event::{InternalEventContent, TwitchChatInternalEvent},
-    },
+    connect::{error::ConnectorError, event_content::EventContent},
 };
 use std::net::TcpStream;
-use websocket::{receiver::Reader, ClientBuilder, OwnedMessage};
+use websocket::{receiver::Reader, sync::Writer, ClientBuilder};
 
 pub struct TwitchChatConnector<'a> {
     receiver: Reader<TcpStream>,
-    sender: TwitchChatSender<'a>,
+    sender: Writer<TcpStream>,
+    app_config: &'a AppConfig,
     access_token_dispenser: AccessTokenDispenser<'a>,
 }
 
@@ -25,7 +26,8 @@ impl<'a> TwitchChatConnector<'a> {
         let (receiver, sender) = chat_client.split().unwrap();
         Self {
             receiver,
-            sender: TwitchChatSender::new(sender, app_config),
+            sender,
+            app_config,
             access_token_dispenser: AccessTokenDispenser::new(app_config),
         }
     }
@@ -37,41 +39,35 @@ impl<'a> TwitchChatConnector<'a> {
             .await
             .expect("Could not get access token")
             .to_owned();
-        self.sender.login(access_token.as_str())?;
+        handle_multiple_sending_tasks(
+            &mut self.sender,
+            get_login_tasks(
+                &access_token,
+                self.app_config.bot_user_name(),
+                self.app_config.channel_name(),
+            ),
+        )?;
         Ok(())
     }
 
     pub fn send_message(&mut self, message: &str) -> Result<(), ConnectorError> {
-        self.sender.send_message(message)
+        handle_sending_task(
+            &mut self.sender,
+            SendTask::PrivateMessage(self.app_config.channel_name(), message),
+        )
     }
 
     pub fn recv_events(&mut self) -> Result<Vec<EventContent>, ConnectorError> {
-        let receiver = &mut self.receiver;
-        let sender = &mut self.sender;
-        loop {
-            let owned_message = receiver
-                .recv_message()
-                .map_err(|err| ConnectorError::MessageReceiveFailed(format!("{:?}", err)))?;
-            match owned_message {
-                OwnedMessage::Text(text) => {
-                    println!("New websocket message: {}", text);
-                    let events = text.lines().filter_map(TwitchChatInternalEvent::new);
-                    let mut result: Vec<EventContent> = Vec::default();
-                    for event in events {
-                        match event {
-                            TwitchChatInternalEvent::External(event_content) => {
-                                println!("Got event {:?}", event_content);
-                                result.push(event_content)
-                            }
-                            TwitchChatInternalEvent::Internal(InternalEventContent::Ping(
-                                server,
-                            )) => sender.send_raw_message(format!("PONG :{}", server))?,
-                        }
-                    }
-                    return Ok(result);
+        let events = handle_receiving_events(&mut self.receiver)?;
+        let mut result: Vec<EventContent> = Vec::default();
+        for event in events {
+            match event {
+                ReceiveEvent::ChatBotEvent(event_content) => result.push(event_content),
+                ReceiveEvent::ConnectorEvent(ConnectorEvent::Ping) => {
+                    handle_sending_task(&mut self.sender, SendTask::Pong)?;
                 }
-                _ => continue,
             }
         }
+        Ok(result)
     }
 }

@@ -13,10 +13,10 @@ Done:
 - [X] Add channel as option
 - [X] Dynamic commands (on the fly)
 - [X] docker setup
+- [X] tests for ReceiveEvent
 
 Tests:
-- [ ] Test Ping-Pong mechanism, What do we do with pings when no events are received? They should still be answered!
-- [ ] tests for TwitchChatInternalEvent
+- [ ] What do we do with pings when no events are received? They should still be answered!
 - [ ] Test user management (with command access rights)
 
 New Feature:
@@ -33,8 +33,6 @@ Setup:
 - [ ] Simplify and fully automate the process for getting the access token
 
 Something to think about:
-- [ ] Refcell still needed?
-- [ ] Enable sentences with spaces as single option for some commands
 - [ ] Can display names really be only upper case versions of the user name? If not, what else should be considered?
 
 Bugs:
