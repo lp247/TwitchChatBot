@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use crate::connect::{Command, EventContent};
+use crate::connect::{ChatBotEvent, Command};
 
 #[derive(Debug)]
 pub struct ChatBot {
@@ -99,21 +99,21 @@ impl ChatBot {
         }
     }
 
-    pub fn handle_event(&mut self, event: EventContent) -> Option<ChatBotCommand> {
+    pub fn handle_event(&mut self, event: ChatBotEvent) -> Option<ChatBotCommand> {
         use ChatBotCommand::*;
         match event {
-            EventContent::Command(command) => self.handle_command(command),
-            EventContent::Join(user) => {
+            ChatBotEvent::Command(command) => self.handle_command(command),
+            ChatBotEvent::Join(user) => {
                 println!("{:?} joined", &user);
                 self.chatters.insert(user);
                 None
             }
-            EventContent::Part(user) => {
+            ChatBotEvent::Part(user) => {
                 println!("{:?} parted", &user);
                 self.chatters.remove(&user);
                 None
             }
-            EventContent::TextMessage(tm) => {
+            ChatBotEvent::TextMessage(tm) => {
                 // this is IO and should perhaps be returned as a command
                 // we can choose to do automated moderation here
                 Some(LogTextMessage(format!("{}: {}", &tm.user_name, &tm.text)))
@@ -132,7 +132,7 @@ mod testing {
     #[test]
     fn test_join() {
         let mut bot = ChatBot::new();
-        let result = bot.handle_event(EventContent::Join(String::from("Carkhy")));
+        let result = bot.handle_event(ChatBotEvent::Join(String::from("Carkhy")));
         assert!(matches!(result, None));
         assert_eq!(bot.chatters.len(), 1);
         assert_eq!(bot.chatters.get("Carkhy").unwrap(), "Carkhy");
@@ -141,8 +141,8 @@ mod testing {
     #[test]
     fn test_part() {
         let mut bot = ChatBot::new();
-        bot.handle_event(EventContent::Join(String::from("Carkhy")));
-        let result = bot.handle_event(EventContent::Part(String::from("Carkhy")));
+        bot.handle_event(ChatBotEvent::Join(String::from("Carkhy")));
+        let result = bot.handle_event(ChatBotEvent::Part(String::from("Carkhy")));
         assert!(matches!(result, None));
         assert_eq!(bot.chatters.len(), 0);
         assert!(matches!(bot.chatters.get("Carkhy"), None));
@@ -151,7 +151,7 @@ mod testing {
     #[test]
     fn test_text_message() {
         let mut bot = ChatBot::new();
-        let result = bot.handle_event(EventContent::TextMessage(TextMessage {
+        let result = bot.handle_event(ChatBotEvent::TextMessage(TextMessage {
             text: "Hello".to_string(),
             user_name: "Carkhy".to_string(),
             tags: HashMap::<String, String>::new(),
@@ -164,7 +164,7 @@ mod testing {
     #[test]
     fn invalid_slapping() {
         let mut bot = ChatBot::new();
-        let result = bot.handle_event(EventContent::Command(Command {
+        let result = bot.handle_event(ChatBotEvent::Command(Command {
             user_name: "CaptainCallback".to_string(),
             name: "slap".to_owned(),
             options: vec!["Carkhy".to_string()],
@@ -176,8 +176,8 @@ mod testing {
     #[test]
     fn valid_slapping_when_abstraction_detected() {
         let mut bot = ChatBot::new();
-        bot.handle_event(EventContent::Join(String::from("CaptainCallback")));
-        let result = bot.handle_event(EventContent::Command(Command {
+        bot.handle_event(ChatBotEvent::Join(String::from("CaptainCallback")));
+        let result = bot.handle_event(ChatBotEvent::Command(Command {
             user_name: "Carkhy".to_string(),
             name: "slap".to_owned(),
             options: vec!["CaptainCallback".to_string()],
@@ -198,7 +198,7 @@ mod testing {
     #[test]
     fn nonmods_cannot_newcommand() {
         let mut bot = ChatBot::new();
-        let result = bot.handle_event(EventContent::Command(Command {
+        let result = bot.handle_event(ChatBotEvent::Command(Command {
             user_name: "CaptainCallback".to_string(),
             name: "newcommand".to_owned(),
             options: vec!["test".to_string(), "testing".to_string()],
@@ -212,7 +212,7 @@ mod testing {
     #[test]
     fn broadcaster_can_newcommand() {
         let mut bot = ChatBot::new();
-        let result = bot.handle_event(EventContent::Command(Command {
+        let result = bot.handle_event(ChatBotEvent::Command(Command {
             user_name: "CaptainCallback".to_string(),
             name: "newcommand".to_owned(),
             options: vec!["test".to_string(), "testing".to_string()],
@@ -228,7 +228,7 @@ mod testing {
     #[test]
     fn mods_can_newcommand() {
         let mut bot = ChatBot::new();
-        let result = bot.handle_event(EventContent::Command(Command {
+        let result = bot.handle_event(ChatBotEvent::Command(Command {
             user_name: "CaptainCallback".to_string(),
             name: "newcommand".to_owned(),
             options: vec!["test2".to_string(), "testing2".to_string()],

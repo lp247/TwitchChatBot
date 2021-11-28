@@ -16,7 +16,7 @@ fn parse_tags(tags_string: &str) -> HashMap<String, String> {
 }
 
 #[derive(Debug)]
-pub enum EventContent {
+pub enum ChatBotEvent {
     TextMessage(TextMessage),
     Command(Command),
     Part(String),
@@ -24,7 +24,7 @@ pub enum EventContent {
 }
 
 // Example message: :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :backseating backseating
-impl EventContent {
+impl ChatBotEvent {
     pub fn new(message: &str) -> Option<Self> {
         enum ParsingState {
             Start,
@@ -86,9 +86,9 @@ impl EventContent {
                                 state = Channel;
                             }
                             // (...) JOIN #<channel>
-                            "JOIN" => return Some(EventContent::Join(user_name.to_string())),
+                            "JOIN" => return Some(ChatBotEvent::Join(user_name.to_string())),
                             // (...) PART #<channel>
-                            "PART" => return Some(EventContent::Part(user_name.to_string())),
+                            "PART" => return Some(ChatBotEvent::Part(user_name.to_string())),
                             // PING :tmi.twitch.tv
                             _ => return None,
                         };
@@ -102,13 +102,10 @@ impl EventContent {
                 MessageBody => {
                     // :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!help
                     if codepoint == '!' {
-                        return Command::new(
-                            message[i+1..].trim(),
-                            user_name,
-                            tags_map,
-                        ).map(EventContent::Command);
+                        return Command::new(message[i + 1..].trim(), user_name, tags_map)
+                            .map(ChatBotEvent::Command);
                     } else {
-                        return Some(EventContent::TextMessage(TextMessage::new(
+                        return Some(ChatBotEvent::TextMessage(TextMessage::new(
                             message[i..].trim(),
                             user_name,
                             tags_map,
@@ -123,7 +120,7 @@ impl EventContent {
 
 #[cfg(test)]
 mod tests {
-    use super::EventContent;
+    use super::ChatBotEvent;
     use std::collections::HashMap;
 
     fn user_message_helper(
@@ -132,9 +129,9 @@ mod tests {
         expected: &str,
         expected_tags: &HashMap<String, String>,
     ) {
-        let parsed = EventContent::new(raw_message);
+        let parsed = ChatBotEvent::new(raw_message);
         assert!(parsed.is_some());
-        if let EventContent::TextMessage(user_message) = parsed.unwrap() {
+        if let ChatBotEvent::TextMessage(user_message) = parsed.unwrap() {
             assert_eq!(user_message.user_name, user_name);
             assert_eq!(user_message.text, expected);
             assert_eq!(user_message.tags, *expected_tags);
@@ -173,9 +170,9 @@ mod tests {
         expected_user_name: &str,
         expected_tags: &HashMap<String, String>,
     ) {
-        let parsed = EventContent::new(raw_message);
+        let parsed = ChatBotEvent::new(raw_message);
         assert!(parsed.is_some());
-        if let EventContent::Command(command) = parsed.unwrap() {
+        if let ChatBotEvent::Command(command) = parsed.unwrap() {
             assert_eq!(command.name, expected_command);
             assert_eq!(command.user_name, expected_user_name);
             assert_eq!(command.options, Vec::<String>::new());
@@ -223,9 +220,9 @@ mod tests {
     fn parsing_join_message() {
         let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv JOIN #captaincallback";
         let expected_user = "carkhy".to_owned();
-        let parsed = EventContent::new(raw_message);
+        let parsed = ChatBotEvent::new(raw_message);
         assert!(parsed.is_some());
-        if let EventContent::Join(user) = parsed.unwrap() {
+        if let ChatBotEvent::Join(user) = parsed.unwrap() {
             assert_eq!(user, expected_user);
         } else {
             unreachable!();
@@ -236,9 +233,9 @@ mod tests {
     fn parsing_part_message() {
         let raw_message = ":carkhy!carkhy@carkhy.tmi.twitch.tv PART #captaincallback";
         let expected_user = "carkhy".to_owned();
-        let parsed = EventContent::new(raw_message);
+        let parsed = ChatBotEvent::new(raw_message);
         assert!(parsed.is_some());
-        if let EventContent::Part(user) = parsed.unwrap() {
+        if let ChatBotEvent::Part(user) = parsed.unwrap() {
             assert_eq!(user, expected_user);
         } else {
             unreachable!();

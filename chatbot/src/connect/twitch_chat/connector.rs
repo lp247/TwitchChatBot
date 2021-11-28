@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     app_config::AppConfig,
-    connect::{error::ConnectorError, event_content::EventContent},
+    connect::{error::ConnectorError, event::ChatBotEvent},
 };
 use std::net::TcpStream;
 use websocket::{receiver::Reader, sync::Writer, ClientBuilder};
@@ -52,9 +52,9 @@ impl<'a> TwitchChatConnector<'a> {
         )
     }
 
-    pub fn recv_events(&mut self) -> Result<Vec<EventContent>, ConnectorError> {
+    pub fn recv_events(&mut self) -> Result<Vec<ChatBotEvent>, ConnectorError> {
         let events = handle_receiving_events(&mut self.receiver)?;
-        let mut result: Vec<EventContent> = Vec::default();
+        let mut result: Vec<ChatBotEvent> = Vec::default();
         for event in events {
             match event {
                 ReceiveEvent::ChatBotEvent(event_content) => result.push(event_content),

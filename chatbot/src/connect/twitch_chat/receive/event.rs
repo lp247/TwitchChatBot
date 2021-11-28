@@ -1,4 +1,4 @@
-use crate::connect::EventContent;
+use crate::connect::ChatBotEvent;
 
 #[derive(Debug)]
 pub enum ConnectorEvent {
@@ -16,13 +16,13 @@ impl ConnectorEvent {
 
 #[derive(Debug)]
 pub enum ReceiveEvent {
-    ChatBotEvent(EventContent),
+    ChatBotEvent(ChatBotEvent),
     ConnectorEvent(ConnectorEvent),
 }
 
 impl ReceiveEvent {
     pub fn new(s: &str) -> Option<Self> {
-        if let Some(event_content) = EventContent::new(s) {
+        if let Some(event_content) = ChatBotEvent::new(s) {
             Some(Self::ChatBotEvent(event_content))
         } else {
             Some(Self::ConnectorEvent(ConnectorEvent::new(s)?))
