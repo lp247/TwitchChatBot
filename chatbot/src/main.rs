@@ -1,19 +1,17 @@
+use crate::core::{ChatBot, ChatBotCommand::*};
 use app_config::AppConfig;
-use chat_bot::ChatBot;
 use connect::TwitchChatConnector;
 use std::error::Error;
 
 extern crate websocket;
 
 pub mod app_config;
-mod chat_bot;
 mod connect;
+mod core;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let app_config = AppConfig::new()?;
-
-    use chat_bot::ChatBotCommand::*;
 
     let mut connector = TwitchChatConnector::new(&app_config).await;
     connector.send_message("Hello, world!")?;

@@ -1,19 +1,11 @@
-use std::collections::{HashMap, HashSet};
-
+use super::ChatBotCommand;
 use crate::connect::{ChatBotEvent, Command};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
 pub struct ChatBot {
     chatters: HashSet<String>, // NOTE: probably replace String with a User struct when we need it.
     dynamic_commands: HashMap<String, String>,
-}
-
-// This will later probably have commands to do http requests to retreive
-// user information and who knows what else
-#[derive(Debug)]
-pub enum ChatBotCommand {
-    SendMessage(String),
-    LogTextMessage(String),
 }
 
 const HELP_MESSAGE: &str =
