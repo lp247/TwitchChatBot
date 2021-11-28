@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{
     app_config::AppConfig,
-    connect::{error::ConnectorError, event::ChatBotEvent},
+    connect::{error::ConnectorError, ChatBotEvent},
 };
 use std::net::TcpStream;
 use websocket::{receiver::Reader, sync::Writer, ClientBuilder};

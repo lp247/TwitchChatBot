@@ -42,7 +42,7 @@ impl ChatBot {
                 println!("Slapping one of these guys \n{:#?}", self.chatters);
                 // Notice how we can now do everything in a single expression
                 // because we removed the IO from this place
-                let slapping_user = command.user_name;
+                let slapping_user = command.user.name;
                 println!("This guy specifically : {}", &slapping_user);
                 command
                     .options
@@ -56,7 +56,7 @@ impl ChatBot {
                     })
             }
             "newcommand" => {
-                if command.is_from_a_mod() {
+                if command.user.has_elevated_rights() {
                     if command.options.len() < 2 {
                         str_msg(NEW_COMMAND_NO_OPTION_MESSAGE)
                     } else {
@@ -71,7 +71,7 @@ impl ChatBot {
                 }
             }
             "removecommand" => {
-                if command.is_from_a_mod() {
+                if command.user.has_elevated_rights() {
                     if command.options.is_empty() {
                         str_msg(REMOVE_COMMAND_NO_OPTION_MESSAGE)
                     } else {
@@ -108,7 +108,7 @@ impl ChatBot {
             ChatBotEvent::TextMessage(tm) => {
                 // this is IO and should perhaps be returned as a command
                 // we can choose to do automated moderation here
-                Some(LogTextMessage(format!("{}: {}", &tm.user_name, &tm.text)))
+                Some(LogTextMessage(format!("{}: {}", &tm.user.name, &tm.text)))
             }
         }
     }
@@ -117,8 +117,7 @@ impl ChatBot {
 #[cfg(test)]
 mod testing {
     use super::*;
-    use crate::connect::TextMessage;
-    use std::collections::HashMap;
+    use crate::connect::{Badge, TextMessage, UserInfo};
 
     // It's now easy to test without connecting
     #[test]
@@ -145,8 +144,10 @@ mod testing {
         let mut bot = ChatBot::new();
         let result = bot.handle_event(ChatBotEvent::TextMessage(TextMessage {
             text: "Hello".to_string(),
-            user_name: "Carkhy".to_string(),
-            tags: HashMap::<String, String>::new(),
+            user: UserInfo {
+                name: "Carkhy".to_owned(),
+                badges: HashSet::default(),
+            },
         }));
         assert!(
             matches!(result, Some(ChatBotCommand::LogTextMessage(message)) if message == "Carkhy: Hello")
@@ -157,10 +158,12 @@ mod testing {
     fn invalid_slapping() {
         let mut bot = ChatBot::new();
         let result = bot.handle_event(ChatBotEvent::Command(Command {
-            user_name: "CaptainCallback".to_string(),
+            user: UserInfo {
+                name: "CaptainCallback".to_owned(),
+                badges: HashSet::default(),
+            },
             name: "slap".to_owned(),
             options: vec!["Carkhy".to_string()],
-            tags: HashMap::<String, String>::new(),
         }));
         assert!(matches!(result, None));
     }
@@ -170,19 +173,13 @@ mod testing {
         let mut bot = ChatBot::new();
         bot.handle_event(ChatBotEvent::Join(String::from("CaptainCallback")));
         let result = bot.handle_event(ChatBotEvent::Command(Command {
-            user_name: "Carkhy".to_string(),
+            user: UserInfo {
+                name: "Carkhy".to_owned(),
+                badges: HashSet::default(),
+            },
             name: "slap".to_owned(),
             options: vec!["CaptainCallback".to_string()],
-            tags: HashMap::<String, String>::new(),
         }));
-        println!("{:#?}", result);
-        println!(
-            "{}",
-            format!(
-                "{} slaps {} around a bit with a large trout",
-                "Carkhy", "CaptainCallback"
-            )
-        );
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
                          if message == format!("{} slaps {} around a bit with a large trout", "Carkhy", "CaptainCallback")));
     }
@@ -191,10 +188,12 @@ mod testing {
     fn nonmods_cannot_newcommand() {
         let mut bot = ChatBot::new();
         let result = bot.handle_event(ChatBotEvent::Command(Command {
-            user_name: "CaptainCallback".to_string(),
+            user: UserInfo {
+                name: "CaptainCallback".to_owned(),
+                badges: HashSet::default(),
+            },
             name: "newcommand".to_owned(),
             options: vec!["test".to_string(), "testing".to_string()],
-            tags: HashMap::<String, String>::new(),
         }));
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
                          if message == DENIED_MESSAGE));
@@ -205,12 +204,15 @@ mod testing {
     fn broadcaster_can_newcommand() {
         let mut bot = ChatBot::new();
         let result = bot.handle_event(ChatBotEvent::Command(Command {
-            user_name: "CaptainCallback".to_string(),
+            user: UserInfo {
+                name: "CaptainCallback".to_owned(),
+                badges: HashSet::from([Badge {
+                    name: "broadcaster".to_owned(),
+                    level: 1,
+                }]),
+            },
             name: "newcommand".to_owned(),
             options: vec!["test".to_string(), "testing".to_string()],
-            tags: vec![("badges".to_string(), "broadcaster/1".to_string())]
-                .into_iter()
-                .collect(),
         }));
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
                          if message != DENIED_MESSAGE));
@@ -221,12 +223,15 @@ mod testing {
     fn mods_can_newcommand() {
         let mut bot = ChatBot::new();
         let result = bot.handle_event(ChatBotEvent::Command(Command {
-            user_name: "CaptainCallback".to_string(),
+            user: UserInfo {
+                name: "CaptainCallback".to_owned(),
+                badges: HashSet::from([Badge {
+                    name: "moderator".to_owned(),
+                    level: 1,
+                }]),
+            },
             name: "newcommand".to_owned(),
             options: vec!["test2".to_string(), "testing2".to_string()],
-            tags: vec![("badges".to_string(), "moderator/1".to_string())]
-                .into_iter()
-                .collect(),
         }));
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
                          if message != DENIED_MESSAGE));

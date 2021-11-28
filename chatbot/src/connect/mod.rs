@@ -1,10 +1,6 @@
-mod command;
+mod connector;
 mod error;
-mod event;
-mod text_message;
-mod twitch_chat;
+mod types;
 
-pub use command::Command;
-pub use event::ChatBotEvent;
-pub use text_message::TextMessage;
-pub use twitch_chat::TwitchChatConnector;
+pub use connector::TwitchChatConnector;
+pub use types::{Badge, ChatBotEvent, Command, TextMessage, UserInfo};

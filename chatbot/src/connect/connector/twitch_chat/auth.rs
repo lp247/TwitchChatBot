@@ -44,9 +44,9 @@ impl<'a> AccessTokenDispenser<'a> {
 
     fn retrieve_code(&self) -> Result<String, ConnectorError> {
         let ssl_config = tiny_http::SslConfig {
-            certificate: include_bytes!("../../../certificates/cert.crt").to_vec(),
+            certificate: include_bytes!("../../../../certificates/cert.crt").to_vec(),
             // TODO: security: must not include private keys in a binary !
-            private_key: include_bytes!("../../../certificates/cert.key").to_vec(),
+            private_key: include_bytes!("../../../../certificates/cert.key").to_vec(),
         };
         let server = tiny_http::Server::https("0.0.0.0:3030", ssl_config).map_err(|err| {
             ConnectorError::MessageReceiveFailed(format!(

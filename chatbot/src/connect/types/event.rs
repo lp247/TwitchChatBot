@@ -1,6 +1,5 @@
-use super::text_message::TextMessage;
-use crate::connect::command::Command;
-use std::collections::HashMap;
+use super::{text_message::TextMessage, Badge, Command, UserInfo};
+use std::collections::{HashMap, HashSet};
 
 fn parse_tags(tags_string: &str) -> HashMap<String, String> {
     tags_string
@@ -13,6 +12,23 @@ fn parse_tags(tags_string: &str) -> HashMap<String, String> {
             )
         })
         .collect()
+}
+
+fn get_badges(tags: HashMap<String, String>) -> HashSet<Badge> {
+    if let Some(badges) = tags.get("badges") {
+        badges
+            .split(',')
+            .map(|s| {
+                let mut splt = s.split('/');
+                return Badge {
+                    name: splt.next().map(String::from).unwrap(),
+                    level: splt.next().and_then(|s| s.parse().ok()).unwrap_or(0),
+                };
+            })
+            .collect()
+    } else {
+        HashSet::default()
+    }
 }
 
 #[derive(Debug)]
@@ -101,14 +117,18 @@ impl ChatBotEvent {
                 }
                 MessageBody => {
                     // :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!help
+                    let badges = get_badges(tags_map);
+                    let user_info = UserInfo {
+                        name: user_name.to_owned(),
+                        badges,
+                    };
                     if codepoint == '!' {
-                        return Command::new(message[i + 1..].trim(), user_name, tags_map)
+                        return Command::new(message[i..].trim(), user_info)
                             .map(ChatBotEvent::Command);
                     } else {
                         return Some(ChatBotEvent::TextMessage(TextMessage::new(
                             message[i..].trim(),
-                            user_name,
-                            tags_map,
+                            user_info,
                         )));
                     }
                 }
@@ -120,21 +140,15 @@ impl ChatBotEvent {
 
 #[cfg(test)]
 mod tests {
-    use super::ChatBotEvent;
-    use std::collections::HashMap;
+    use super::*;
 
-    fn user_message_helper(
-        raw_message: &str,
-        user_name: &str,
-        expected: &str,
-        expected_tags: &HashMap<String, String>,
-    ) {
+    fn user_message_helper(raw_message: &str, expected_text: &str, expected_user: &UserInfo) {
         let parsed = ChatBotEvent::new(raw_message);
         assert!(parsed.is_some());
         if let ChatBotEvent::TextMessage(user_message) = parsed.unwrap() {
-            assert_eq!(user_message.user_name, user_name);
-            assert_eq!(user_message.text, expected);
-            assert_eq!(user_message.tags, *expected_tags);
+            assert_eq!(user_message.user.name, expected_user.name);
+            assert_eq!(user_message.user.badges, expected_user.badges);
+            assert_eq!(user_message.text, expected_text);
         } else {
             unreachable!();
         }
@@ -144,39 +158,32 @@ mod tests {
     fn parsing_user_messages() {
         let raw_message = "@tag1=something;tag2= :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message";
         let expected_text = "a function that takes a string and returns the message";
-        let expected_user = "carkhy";
-        let expected_tags: HashMap<String, String> = HashMap::from([
-            ("tag1".to_owned(), "something".to_owned()),
-            ("tag2".to_owned(), "".to_owned()),
-        ]);
-        user_message_helper(raw_message, expected_user, expected_text, &expected_tags);
+        let expected_user_info = UserInfo {
+            name: "carkhy".to_owned(),
+            badges: HashSet::default(),
+        };
+        user_message_helper(raw_message, expected_text, &expected_user_info);
     }
 
     #[test]
     fn parsing_user_messages_with_trailing_newlines() {
         let raw_message = "@tag1=something;tag2= :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :a function that takes a string and returns the message\n";
         let expected_text = "a function that takes a string and returns the message";
-        let expected_user = "carkhy";
-        let expected_tags: HashMap<String, String> = HashMap::from([
-            ("tag1".to_owned(), "something".to_owned()),
-            ("tag2".to_owned(), "".to_owned()),
-        ]);
-        user_message_helper(raw_message, expected_user, expected_text, &expected_tags);
+        let expected_user_info = UserInfo {
+            name: "carkhy".to_owned(),
+            badges: HashSet::default(),
+        };
+        user_message_helper(raw_message, expected_text, &expected_user_info);
     }
 
-    fn command_helper(
-        raw_message: &str,
-        expected_command: &str,
-        expected_user_name: &str,
-        expected_tags: &HashMap<String, String>,
-    ) {
+    fn command_helper(raw_message: &str, expected_command: &str, expected_user: &UserInfo) {
         let parsed = ChatBotEvent::new(raw_message);
         assert!(parsed.is_some());
         if let ChatBotEvent::Command(command) = parsed.unwrap() {
             assert_eq!(command.name, expected_command);
-            assert_eq!(command.user_name, expected_user_name);
+            assert_eq!(command.user.name, expected_user.name);
+            assert_eq!(command.user.badges, expected_user.badges);
             assert_eq!(command.options, Vec::<String>::new());
-            assert_eq!(command.tags, *expected_tags);
         } else {
             unreachable!();
         }
@@ -184,36 +191,42 @@ mod tests {
 
     #[test]
     fn parsing_help_command_in_event_parser() {
-        let raw_message = "@tag1=something;tag2= :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!help";
+        let raw_message = "@badges=badgename/10,other/20;tag2= :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!help";
         let expected_command = "help";
-        let expected_user_name = "carkhy";
-        let expected_tags: HashMap<String, String> = HashMap::from([
-            ("tag1".to_owned(), "something".to_owned()),
-            ("tag2".to_owned(), "".to_owned()),
-        ]);
-        command_helper(
-            raw_message,
-            expected_command,
-            expected_user_name,
-            &expected_tags,
-        );
+        let expected_user_info = UserInfo {
+            name: "carkhy".to_owned(),
+            badges: HashSet::from([
+                Badge {
+                    name: "badgename".to_owned(),
+                    level: 10,
+                },
+                Badge {
+                    name: "other".to_owned(),
+                    level: 20,
+                },
+            ]),
+        };
+        command_helper(raw_message, expected_command, &expected_user_info);
     }
 
     #[test]
     fn parsing_info_command_in_event_parser() {
-        let raw_message = "@tag1=something;tag2= :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!info";
+        let raw_message = "@badges=badgename/10,other/20;tag2= :carkhy!carkhy@carkhy.tmi.twitch.tv PRIVMSG #captaincallback :!info";
         let expected_command = "info";
-        let expected_user_name = "carkhy";
-        let expected_tags: HashMap<String, String> = HashMap::from([
-            ("tag1".to_owned(), "something".to_owned()),
-            ("tag2".to_owned(), "".to_owned()),
-        ]);
-        command_helper(
-            raw_message,
-            expected_command,
-            expected_user_name,
-            &expected_tags,
-        );
+        let expected_user_info = UserInfo {
+            name: "carkhy".to_owned(),
+            badges: HashSet::from([
+                Badge {
+                    name: "badgename".to_owned(),
+                    level: 10,
+                },
+                Badge {
+                    name: "other".to_owned(),
+                    level: 20,
+                },
+            ]),
+        };
+        command_helper(raw_message, expected_command, &expected_user_info);
     }
 
     #[test]
