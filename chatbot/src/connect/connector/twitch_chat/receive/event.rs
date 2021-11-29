@@ -20,6 +20,7 @@ impl ReceiveEvent {
             "newcommand" => CommandType::NewCommand,
             "removecommand" => CommandType::RemoveCommand,
             "slap" => CommandType::Slap,
+            "discord" => CommandType::Discord,
             _ => CommandType::Dynamic(command_name.to_owned()),
         }
     }
@@ -323,6 +324,20 @@ mod tests {
         let expected = Some(ReceiveEvent::ChatBotEvent(ChatBotEvent::Command(Command {
             kind: CommandType::RemoveCommand,
             options: vec!["command".to_owned()],
+            user: UserInfo {
+                name: "chatter".to_owned(),
+                badges: HashSet::default(),
+            },
+        })));
+        assert_eq!(ReceiveEvent::parse_from_message(message), expected);
+    }
+
+    #[test]
+    fn parsing_discord_command() {
+        let message = "@badge-info=;badges=;client-nonce=1e51cee7513a4516545bbc36a22f27eb;color=;display-name=carkhy;emotes=;first-msg=0;flags=;id=60904094-3684-4871-9e8c-1400648a804d;mod=0;room-id=120630112;subscriber=0;tmi-sent-ts=1637614002702;turbo=0;user-id=70346833;user-type= :chatter!chatter@chatter.tmi.twitch.tv PRIVMSG #channel123 :!discord";
+        let expected = Some(ReceiveEvent::ChatBotEvent(ChatBotEvent::Command(Command {
+            kind: CommandType::Discord,
+            options: Vec::default(),
             user: UserInfo {
                 name: "chatter".to_owned(),
                 badges: HashSet::default(),

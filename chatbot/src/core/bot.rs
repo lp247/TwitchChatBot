@@ -19,6 +19,8 @@ const REMOVE_COMMAND_NO_OPTION_MESSAGE: &str =
     "removecommand requires at least one option but none was given.";
 const REMOVE_COMMAND_SUCCESSFUL_MESSAGE: &str = "The command has been removed successfully.";
 const DENIED_MESSAGE: &str = "Denied: i ought to !slap you...";
+const DISCORD_MESSAGE: &str =
+    "You can join me on discord for news and updates here: https://discord.gg/qM6DTTQxDV";
 
 fn str_msg(string: &str) -> Option<ChatBotCommand> {
     Some(ChatBotCommand::SendMessage(string.to_string()))
@@ -36,6 +38,7 @@ impl ChatBot {
         println!("Executing this command: {:#?}", command);
         use ChatBotCommand::*;
         match command.kind {
+            CommandType::Discord => str_msg(DISCORD_MESSAGE),
             CommandType::Help => str_msg(HELP_MESSAGE),
             CommandType::Info => str_msg(INFO_MESSAGE),
             CommandType::Slap => {

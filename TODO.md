@@ -14,10 +14,11 @@ Done:
 - [X] Dynamic commands (on the fly)
 - [X] docker setup
 - [X] tests for ReceiveEvent
+- [X] Test user management (with command access rights)
+- [X] Discord command (!discord; and maybe also timed repetition)
 
 Tests:
 - [ ] What do we do with pings when no events are received? They should still be answered!
-- [ ] Test user management (with command access rights)
 
 New Feature:
 - [ ] Timed repetitions
@@ -27,7 +28,6 @@ New Feature:
 - [ ] Management UI
 - [ ] Viewer Statistics
 - [ ] Chat logs
-- [ ] Discord command (!discord; and maybe also timed repetition)
 
 Setup:
 - [ ] Simplify and fully automate the process for getting the access token

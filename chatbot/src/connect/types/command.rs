@@ -7,6 +7,7 @@ pub enum CommandType {
     NewCommand,
     RemoveCommand,
     Slap,
+    Discord,
     Dynamic(String),
 }
 
