@@ -11,7 +11,7 @@ pub struct ChatBot {
 const HELP_MESSAGE: &str =
     "!help: Show this help | !info: Show some information about the chat bot";
 const INFO_MESSAGE: &str =
-    "Hello, my name is TwitchBotanist. I am a twitch chat bot written in Rust. If you want to know what you can ask me, write '!help' into the chat!";
+    "Hello, my name is TwitchBotanist. I am a twitch chat bot written in Rust. My source code is on GitHub (https://github.com/CaptainCallback/TwitchBotanist). If you want to know what you can ask me, write '!help' into the chat!";
 const NEW_COMMAND_SUCCESSFUL_MESSAGE: &str = "The new command has been defined successfully.";
 const NEW_COMMAND_NO_OPTION_MESSAGE: &str =
     "newcommand requires at least two options but less were given.";
