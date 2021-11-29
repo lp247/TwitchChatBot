@@ -1,5 +1,5 @@
 use super::ChatBotCommand;
-use crate::connect::{ChatBotEvent, Command};
+use crate::connect::{ChatBotEvent, Command, CommandType};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
@@ -35,10 +35,10 @@ impl ChatBot {
     fn handle_command(&mut self, command: Command) -> Option<ChatBotCommand> {
         println!("Executing this command: {:#?}", command);
         use ChatBotCommand::*;
-        match command.name.as_str() {
-            "help" => str_msg(HELP_MESSAGE),
-            "info" => str_msg(INFO_MESSAGE),
-            "slap" => {
+        match command.kind {
+            CommandType::Help => str_msg(HELP_MESSAGE),
+            CommandType::Info => str_msg(INFO_MESSAGE),
+            CommandType::Slap => {
                 println!("Slapping one of these guys \n{:#?}", self.chatters);
                 // Notice how we can now do everything in a single expression
                 // because we removed the IO from this place
@@ -55,7 +55,7 @@ impl ChatBot {
                         ))
                     })
             }
-            "newcommand" => {
+            CommandType::NewCommand => {
                 if command.user.has_elevated_rights() {
                     if command.options.len() < 2 {
                         str_msg(NEW_COMMAND_NO_OPTION_MESSAGE)
@@ -70,7 +70,7 @@ impl ChatBot {
                     str_msg(DENIED_MESSAGE)
                 }
             }
-            "removecommand" => {
+            CommandType::RemoveCommand => {
                 if command.user.has_elevated_rights() {
                     if command.options.is_empty() {
                         str_msg(REMOVE_COMMAND_NO_OPTION_MESSAGE)
@@ -83,9 +83,9 @@ impl ChatBot {
                     str_msg(DENIED_MESSAGE)
                 }
             }
-            command_name => self
+            CommandType::Dynamic(command_name) => self
                 .dynamic_commands
-                .get(command_name)
+                .get(&command_name)
                 .map(String::from)
                 .map(SendMessage),
         }
@@ -162,7 +162,7 @@ mod testing {
                 name: "CaptainCallback".to_owned(),
                 badges: HashSet::default(),
             },
-            name: "slap".to_owned(),
+            kind: CommandType::Slap,
             options: vec!["Carkhy".to_string()],
         }));
         assert!(matches!(result, None));
@@ -177,7 +177,7 @@ mod testing {
                 name: "Carkhy".to_owned(),
                 badges: HashSet::default(),
             },
-            name: "slap".to_owned(),
+            kind: CommandType::Slap,
             options: vec!["CaptainCallback".to_string()],
         }));
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
@@ -192,7 +192,7 @@ mod testing {
                 name: "CaptainCallback".to_owned(),
                 badges: HashSet::default(),
             },
-            name: "newcommand".to_owned(),
+            kind: CommandType::NewCommand,
             options: vec!["test".to_string(), "testing".to_string()],
         }));
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
@@ -211,7 +211,7 @@ mod testing {
                     level: 1,
                 }]),
             },
-            name: "newcommand".to_owned(),
+            kind: CommandType::NewCommand,
             options: vec!["test".to_string(), "testing".to_string()],
         }));
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))
@@ -230,7 +230,7 @@ mod testing {
                     level: 1,
                 }]),
             },
-            name: "newcommand".to_owned(),
+            kind: CommandType::NewCommand,
             options: vec!["test2".to_string(), "testing2".to_string()],
         }));
         assert!(matches!(result, Some(ChatBotCommand::SendMessage(message))

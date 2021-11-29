@@ -13,7 +13,10 @@ pub fn handle_receiving_events(
         match owned_message {
             OwnedMessage::Text(text) => {
                 println!("New websocket message: {}", text);
-                let events = text.lines().filter_map(ReceiveEvent::new).collect();
+                let events = text
+                    .lines()
+                    .filter_map(ReceiveEvent::parse_from_message)
+                    .collect();
                 return Ok(events);
             }
             _ => continue,
