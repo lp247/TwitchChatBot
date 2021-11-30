@@ -1,11 +1,27 @@
+//use timer::Guard;
+
+use uuid::Uuid;
+
 use super::ChatBotCommand;
 use crate::connect::{ChatBotEvent, Command, CommandType};
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 #[derive(Debug)]
 pub struct ChatBot {
     chatters: HashSet<String>, // NOTE: probably replace String with a User struct when we need it.
     dynamic_commands: HashMap<String, String>,
+    repeating_messages: HashMap<String, RepeatingMessage>,
+}
+
+#[derive(Debug)]
+struct RepeatingMessage {
+    name: String,
+    text: String,
+    interval: Duration,
+    timer_id: Uuid,
 }
 
 const HELP_MESSAGE: &str =
@@ -31,6 +47,7 @@ impl ChatBot {
         Self {
             chatters: HashSet::default(),
             dynamic_commands: HashMap::default(),
+            repeating_messages: HashMap::default(),
         }
     }
 
@@ -86,6 +103,62 @@ impl ChatBot {
                     str_msg(DENIED_MESSAGE)
                 }
             }
+
+            CommandType::NewRepeating => {
+                if command.user.has_elevated_rights() {
+                    if command.options.len() < 2 {
+                        // TODO: set the correct message here
+                        str_msg(NEW_COMMAND_NO_OPTION_MESSAGE)
+                    } else {
+                        let message_name = &command.options[0];
+                        if let Ok(seconds) = &command.options[1].parse() {
+                            let interval = Duration::from_secs(*seconds);
+                            let id = Uuid::new_v4();
+                            self.repeating_messages.insert(
+                                message_name.to_string(),
+                                RepeatingMessage {
+                                    name: message_name.to_string(),
+                                    text: command.options[2..].join(" "),
+                                    interval,
+                                    timer_id: id,
+                                },
+                            );
+                            // TODO: set the correct message here
+                            Some(MultipleCommands(vec![
+                                ChatBotCommand::SendMessage(
+                                    NEW_COMMAND_SUCCESSFUL_MESSAGE.to_string(),
+                                ),
+                                TimedCallback {
+                                    duration: interval,
+                                    event: ChatBotEvent::TimedMessage(message_name.to_string(), id),
+                                },
+                            ]))
+                        } else {
+                            // TODO: set the correct message here
+                            str_msg(NEW_COMMAND_NO_OPTION_MESSAGE)
+                        }
+                    }
+                } else {
+                    str_msg(DENIED_MESSAGE)
+                }
+            }
+
+            CommandType::RemoveRepeating => {
+                if command.user.has_elevated_rights() {
+                    if command.options.is_empty() {
+                        // TODO: set the correct message here
+                        str_msg(REMOVE_COMMAND_NO_OPTION_MESSAGE)
+                    } else {
+                        let command_name = &command.options[0];
+                        self.repeating_messages.remove(command_name);
+                        // TODO: set the correct message here
+                        str_msg(REMOVE_COMMAND_SUCCESSFUL_MESSAGE)
+                    }
+                } else {
+                    str_msg(DENIED_MESSAGE)
+                }
+            }
+
             CommandType::Dynamic(command_name) => self
                 .dynamic_commands
                 .get(&command_name)
@@ -109,9 +182,22 @@ impl ChatBot {
                 None
             }
             ChatBotEvent::TextMessage(tm) => {
-                // this is IO and should perhaps be returned as a command
-                // we can choose to do automated moderation here
                 Some(LogTextMessage(format!("{}: {}", &tm.user.name, &tm.text)))
+            }
+            ChatBotEvent::TimedMessage(message_name, id) => {
+                self.repeating_messages.get(&message_name).and_then(|msg| {
+                    if id == msg.timer_id {
+                        Some(MultipleCommands(vec![
+                            ChatBotCommand::SendMessage(msg.text.to_owned()),
+                            TimedCallback {
+                                duration: msg.interval,
+                                event: ChatBotEvent::TimedMessage(msg.name.to_owned(), id),
+                            },
+                        ]))
+                    } else {
+                        None
+                    }
+                })
             }
         }
     }

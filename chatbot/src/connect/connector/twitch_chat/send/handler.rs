@@ -3,8 +3,8 @@ use crate::connect::error::ConnectorError;
 use std::net::TcpStream;
 use websocket::{sync::Writer, Message};
 
-pub fn handle_sending_task<'a>(
-    sender: &'a mut Writer<TcpStream>,
+pub fn handle_sending_task(
+    sender: &mut Writer<TcpStream>,
     task: SendTask,
 ) -> Result<(), ConnectorError> {
     let message = Message::text(task.to_string());
@@ -13,12 +13,12 @@ pub fn handle_sending_task<'a>(
     })
 }
 
-pub fn handle_multiple_sending_tasks<'a>(
-    sender: &'a mut Writer<TcpStream>,
+pub fn handle_multiple_sending_tasks(
+    sender: &mut Writer<TcpStream>,
     tasks: Vec<SendTask>,
 ) -> Result<(), ConnectorError> {
     for task in tasks {
         handle_sending_task(sender, task)?;
     }
-    return Ok(());
+    Ok(())
 }

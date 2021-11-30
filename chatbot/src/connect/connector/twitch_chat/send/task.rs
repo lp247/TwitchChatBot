@@ -1,13 +1,13 @@
-pub enum SendTask<'a> {
-    PrivateMessage(&'a str, &'a str),
-    ProvideLoginPassword(&'a str),
-    ProvideLoginUserName(&'a str),
-    JoinChannel(&'a str),
-    RequestCapabilities(&'a str),
+pub enum SendTask {
+    PrivateMessage(String, String),
+    ProvideLoginPassword(String),
+    ProvideLoginUserName(String),
+    JoinChannel(String),
+    RequestCapabilities(String),
     Pong,
 }
 
-impl<'a> ToString for SendTask<'a> {
+impl ToString for SendTask {
     fn to_string(&self) -> String {
         match self {
             Self::PrivateMessage(channel, message) => format!("PRIVMSG #{} :{}", channel, message),
@@ -28,31 +28,31 @@ mod tests {
 
     #[test]
     fn prints_private_messages_correctly() {
-        let task = SendTask::PrivateMessage("channelname", "Message");
+        let task = SendTask::PrivateMessage("channelname".to_string(), "Message".to_string());
         assert_eq!(task.to_string(), "PRIVMSG #channelname :Message");
     }
 
     #[test]
     fn prints_login_password_messages_correctly() {
-        let task = SendTask::ProvideLoginPassword("admin123");
+        let task = SendTask::ProvideLoginPassword("admin123".to_string());
         assert_eq!(task.to_string(), "PASS oauth:admin123");
     }
 
     #[test]
     fn prints_login_username_messages_correctly() {
-        let task = SendTask::ProvideLoginUserName("user123");
+        let task = SendTask::ProvideLoginUserName("user123".to_string());
         assert_eq!(task.to_string(), "NICK user123");
     }
 
     #[test]
     fn prints_join_channel_messages_correctly() {
-        let task = SendTask::JoinChannel("channel123");
+        let task = SendTask::JoinChannel("channel123".to_string());
         assert_eq!(task.to_string(), "JOIN #channel123");
     }
 
     #[test]
     fn prints_request_capabilities_messages_correctly() {
-        let task = SendTask::RequestCapabilities("capability123");
+        let task = SendTask::RequestCapabilities("capability123".to_string());
         assert_eq!(task.to_string(), "CAP REQ :twitch.tv/capability123");
     }
 

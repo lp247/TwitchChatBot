@@ -21,6 +21,8 @@ impl ReceiveEvent {
             "removecommand" => CommandType::RemoveCommand,
             "slap" => CommandType::Slap,
             "discord" => CommandType::Discord,
+            "newrepeating" => CommandType::NewRepeating,
+            "removerepeating" => CommandType::RemoveRepeating,
             _ => CommandType::Dynamic(command_name.to_owned()),
         }
     }
@@ -168,12 +170,12 @@ fn get_badges(tags: HashMap<String, String>) -> HashSet<Badge> {
         }
         badges
             .split(',')
-            .map(|s| {
+            .map(|s| { // TODO: use filter_map here to avoid potential panics
                 let mut splt = s.split('/');
-                return Badge {
+                Badge {
                     name: splt.next().map(String::from).unwrap(),
                     level: splt.next().and_then(|s| s.parse().ok()).unwrap_or(0),
-                };
+                }
             })
             .collect()
     } else {
@@ -352,6 +354,26 @@ mod tests {
         let expected = Some(ReceiveEvent::ChatBotEvent(ChatBotEvent::Command(Command {
             kind: CommandType::Dynamic("unknown".to_owned()),
             options: vec!["command".to_owned()],
+            user: UserInfo {
+                name: "chatter".to_owned(),
+                badges: HashSet::default(),
+            },
+        })));
+        assert_eq!(ReceiveEvent::parse_from_message(message), expected);
+    }
+
+    #[test]
+    fn parsing_newrepeating_command() {
+        let message = "@badge-info=;badges=;client-nonce=1e51cee7513a4516545bbc36a22f27eb;color=;display-name=carkhy;emotes=;first-msg=0;flags=;id=60904094-3684-4871-9e8c-1400648a804d;mod=0;room-id=120630112;subscriber=0;tmi-sent-ts=1637614002702;turbo=0;user-id=70346833;user-type= :chatter!chatter@chatter.tmi.twitch.tv PRIVMSG #channel123 :!newrepeating command 60 Text to output";
+        let expected = Some(ReceiveEvent::ChatBotEvent(ChatBotEvent::Command(Command {
+            kind: CommandType::NewRepeating,
+            options: vec![
+                "command".to_owned(),
+                "60".to_owned(),
+                "Text".to_owned(),
+                "to".to_owned(),
+                "output".to_owned(),
+            ],
             user: UserInfo {
                 name: "chatter".to_owned(),
                 badges: HashSet::default(),

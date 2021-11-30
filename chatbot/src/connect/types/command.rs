@@ -9,6 +9,8 @@ pub enum CommandType {
     Slap,
     Discord,
     Dynamic(String),
+    NewRepeating,
+    RemoveRepeating,
 }
 
 #[derive(Debug, PartialEq, Eq)]

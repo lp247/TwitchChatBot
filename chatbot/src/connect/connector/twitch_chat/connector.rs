@@ -1,23 +1,30 @@
 use super::{
     auth::AccessTokenDispenser,
-    receive::{handle_receiving_events, ConnectorEvent, ReceiveEvent},
+    receive::{handle_receiving_events, ReceiveEvent},
     send::{get_login_tasks, handle_multiple_sending_tasks, handle_sending_task, SendTask},
 };
 use crate::{
     app_config::AppConfig,
     connect::{error::ConnectorError, ChatBotEvent},
 };
-use std::net::TcpStream;
+use std::{
+    net::TcpStream,
+    sync::mpsc::{self, Sender, SyncSender},
+    thread::{self, JoinHandle},
+};
 use websocket::{receiver::Reader, sync::Writer, ClientBuilder};
 
 pub struct TwitchChatConnector<'a> {
-    receiver: Reader<TcpStream>,
-    sender: Writer<TcpStream>,
+    _receive_thread: ReceiveThread,
+    send_thread: SendThread,
     app_config: &'a AppConfig,
 }
 
 impl<'a> TwitchChatConnector<'a> {
-    pub async fn new(app_config: &'a AppConfig) -> TwitchChatConnector<'a> {
+    pub async fn new(
+        app_config: &'a AppConfig,
+        chatbot_event_sender: Sender<ChatBotEvent>,
+    ) -> TwitchChatConnector<'a> {
         let chat_client = ClientBuilder::new("ws://irc-ws.chat.twitch.tv:80")
             .unwrap()
             .connect_insecure()
@@ -38,31 +45,78 @@ impl<'a> TwitchChatConnector<'a> {
             ),
         )
         .expect("Could not log in");
+        let send_thread = send_thread(sender);
+        let receive_thread = receive_thread(receiver, chatbot_event_sender, send_thread.tx.clone());
         Self {
-            receiver,
-            sender,
+            send_thread,
+            _receive_thread: receive_thread,
             app_config,
         }
     }
 
-    pub fn send_message(&mut self, message: &str) -> Result<(), ConnectorError> {
-        handle_sending_task(
-            &mut self.sender,
-            SendTask::PrivateMessage(self.app_config.channel_name(), message),
-        )
+    pub fn send_message(&self, message: &'a str) -> Result<(), ConnectorError> {
+        Ok(self.send_thread.tx.send(SendTask::PrivateMessage(
+            self.app_config.channel_name().to_string(),
+            message.to_string(),
+        ))?)
     }
+}
 
-    pub fn recv_events(&mut self) -> Result<Vec<ChatBotEvent>, ConnectorError> {
-        let events = handle_receiving_events(&mut self.receiver)?;
-        let mut result: Vec<ChatBotEvent> = Vec::default();
-        for event in events {
-            match event {
-                ReceiveEvent::ChatBotEvent(event_content) => result.push(event_content),
-                ReceiveEvent::ConnectorEvent(ConnectorEvent::Ping) => {
-                    handle_sending_task(&mut self.sender, SendTask::Pong)?;
+struct ReceiveThread {
+    _handle: JoinHandle<()>,
+}
+
+fn receive_thread(
+    mut receiver: Reader<TcpStream>,
+    send_chat_bot_events: Sender<ChatBotEvent>,
+    send_tasks: SyncSender<SendTask>,
+) -> ReceiveThread {
+    use ReceiveEvent::*;
+    let handle = thread::spawn(move || 'outer: loop {
+        match handle_receiving_events(&mut receiver) {
+            Ok(events) => {
+                for event in events {
+                    if let ChatBotEvent(event_content) = event {
+                        if let Err(error) = send_chat_bot_events.send(event_content) {
+                            println!("Reader thread stopped with error {:?}", error);
+                            break 'outer;
+                        }
+                    } else {
+                        if let Err(error) = send_tasks.send(SendTask::Pong) {
+                            println!("Reader thread stopped with error {:?}", error);
+                            break 'outer;
+                        }
+                    }
                 }
             }
+            Err(error) => {
+                println!("Reader thread stopped with error {:?}", error);
+                break 'outer;
+            }
         }
-        Ok(result)
+    });
+    ReceiveThread { _handle: handle }
+}
+
+struct SendThread {
+    _handle: JoinHandle<()>,
+    tx: SyncSender<SendTask>,
+}
+
+const SEND_CHAN_CAPACITY: usize = 10;
+
+fn send_thread(mut sender: Writer<TcpStream>) -> SendThread {
+    let (tx, rx) = mpsc::sync_channel(SEND_CHAN_CAPACITY);
+    let handle = thread::spawn(move || {
+        while let Ok(task) = rx.recv() {
+            if let Err(error) = handle_sending_task(&mut sender, task) {
+                println!("writer thread stopped with error {:?}", error);
+                break;
+            }
+        }
+    });
+    SendThread {
+        _handle: handle,
+        tx,
     }
 }
