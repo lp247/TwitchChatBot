@@ -16,12 +16,14 @@ Done:
 - [X] tests for ReceiveEvent
 - [X] Test user management (with command access rights)
 - [X] Discord command (!discord; and maybe also timed repetition)
+- [X] Timed repetitions
 
 Tests:
 - [ ] What do we do with pings when no events are received? They should still be answered!
 
 New Feature:
-- [ ] Timed repetitions
+- [ ] Persistence (file or sqlite with rusqlite)
+- [ ] Need a way to keep track of names of new commands and repeatings => create CLI
 - [ ] Respect chat message rate limits
 - [ ] Spam protection (machine learning?)
 - [ ] Polls
@@ -36,8 +38,10 @@ Something to think about:
 - [ ] Can display names really be only upper case versions of the user name? If not, what else should be considered?
 - [ ] Maybe put all the looping logic of the main.rs file into a separate event_loop.rs file
 - [ ] Proper error handling in all the program
+- [ ] Remove all hard coded string messages (discord, info, ...)
 
 Bugs:
 - [ ] Bot is not responding to multiple fast sent commands
 - [ ] You can slap yourself!!!
 - [ ] slapping is case sensitive
+- [ ] "Reader thread stopped with error MessageReceiveFailed("NoDataAvailable")" after some time
