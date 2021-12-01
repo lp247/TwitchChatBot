@@ -1,3 +1,38 @@
+use crate::connect::error::ConnectorError;
+use std::net::TcpStream;
+use websocket::{sync::Writer, Message};
+
+pub fn send(sender: &mut Writer<TcpStream>, task: SendTask) -> Result<(), ConnectorError> {
+    let message = Message::text(task.to_string());
+    sender.send_message(&message).map_err(|err| {
+        ConnectorError::MessageSendFailed(format!("Could not send message: {:?}", err))
+    })
+}
+
+pub fn send_multiple(
+    sender: &mut Writer<TcpStream>,
+    tasks: Vec<SendTask>,
+) -> Result<(), ConnectorError> {
+    for task in tasks {
+        send(sender, task)?;
+    }
+    Ok(())
+}
+
+pub fn get_login_tasks<'a>(
+    password: &'a str,
+    user_name: &'a str,
+    channel: &'a str,
+) -> Vec<SendTask> {
+    return vec![
+        SendTask::ProvideLoginPassword(password.to_string()),
+        SendTask::ProvideLoginUserName(user_name.to_string()),
+        SendTask::JoinChannel(channel.to_string()),
+        SendTask::RequestCapabilities("membership".to_string()),
+        SendTask::RequestCapabilities("tags".to_string()),
+    ];
+}
+
 pub enum SendTask {
     PrivateMessage(String, String),
     ProvideLoginPassword(String),

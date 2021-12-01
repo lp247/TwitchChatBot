@@ -34,6 +34,8 @@ Setup:
 
 Something to think about:
 - [ ] Can display names really be only upper case versions of the user name? If not, what else should be considered?
+- [ ] Maybe put all the looping logic of the main.rs file into a separate event_loop.rs file
+- [ ] Proper error handling in all the program
 
 Bugs:
 - [ ] Bot is not responding to multiple fast sent commands

@@ -1,7 +1,7 @@
 use super::{
     auth::AccessTokenDispenser,
-    receive::{handle_receiving_events, ReceiveEvent},
-    send::{get_login_tasks, handle_multiple_sending_tasks, handle_sending_task, SendTask},
+    receive::{receive, ReceiveEvent},
+    send::{get_login_tasks, send, send_multiple, SendTask},
 };
 use crate::{
     app_config::AppConfig,
@@ -36,7 +36,7 @@ impl<'a> TwitchChatConnector<'a> {
             .await
             .expect("Could not get access token")
             .to_owned();
-        handle_multiple_sending_tasks(
+        send_multiple(
             &mut sender,
             get_login_tasks(
                 &access_token,
@@ -73,7 +73,7 @@ fn receive_thread(
 ) -> ReceiveThread {
     use ReceiveEvent::*;
     let handle = thread::spawn(move || 'outer: loop {
-        match handle_receiving_events(&mut receiver) {
+        match receive(&mut receiver) {
             Ok(events) => {
                 for event in events {
                     if let ChatBotEvent(event_content) = event {
@@ -109,7 +109,7 @@ fn send_thread(mut sender: Writer<TcpStream>) -> SendThread {
     let (tx, rx) = mpsc::sync_channel(SEND_CHAN_CAPACITY);
     let handle = thread::spawn(move || {
         while let Ok(task) = rx.recv() {
-            if let Err(error) = handle_sending_task(&mut sender, task) {
+            if let Err(error) = send(&mut sender, task) {
                 println!("writer thread stopped with error {:?}", error);
                 break;
             }

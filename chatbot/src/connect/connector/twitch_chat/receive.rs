@@ -1,5 +1,27 @@
+use crate::connect::error::ConnectorError;
 use crate::connect::{types::CommandType, Badge, ChatBotEvent, Command, TextMessage, UserInfo};
 use std::collections::{HashMap, HashSet};
+use std::net::TcpStream;
+use websocket::{receiver::Reader, OwnedMessage};
+
+pub fn receive(receiver: &mut Reader<TcpStream>) -> Result<Vec<ReceiveEvent>, ConnectorError> {
+    let owned_message = receiver
+        .recv_message()
+        .map_err(|err| ConnectorError::MessageReceiveFailed(format!("{:?}", err)))?;
+    loop {
+        match owned_message {
+            OwnedMessage::Text(text) => {
+                println!("New websocket message: {}", text);
+                let events = text
+                    .lines()
+                    .filter_map(ReceiveEvent::parse_from_message)
+                    .collect();
+                return Ok(events);
+            }
+            _ => continue,
+        }
+    }
+}
 
 #[derive(Debug, PartialEq)]
 pub enum ConnectorEvent {
@@ -170,7 +192,8 @@ fn get_badges(tags: HashMap<String, String>) -> HashSet<Badge> {
         }
         badges
             .split(',')
-            .map(|s| { // TODO: use filter_map here to avoid potential panics
+            .map(|s| {
+                // TODO: use filter_map here to avoid potential panics
                 let mut splt = s.split('/');
                 Badge {
                     name: splt.next().map(String::from).unwrap(),
