@@ -15,3 +15,4 @@ thiserror = "1.0"
 dotenv = "0.15"
 uuid = { version = "0.8", features = ["v4"] }
 thread_timer = "0.3"
+kv = "0.22.0"

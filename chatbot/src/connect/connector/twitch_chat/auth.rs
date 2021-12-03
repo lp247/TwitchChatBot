@@ -1,9 +1,11 @@
 use crate::{app_config::AppConfig, connect::error::ConnectorError};
+use kv::*;
 use reqwest::Response;
 use serde_json::{from_str, Value};
 
-static VALIDATION_URL: &str = "https://id.twitch.tv/oauth2/validate";
-static REDIRECT_URI: &str = "https://localhost:3030";
+const VALIDATION_URL: &str = "https://id.twitch.tv/oauth2/validate";
+const REDIRECT_URI: &str = "https://localhost:3030";
+const AUTH_CONFIG_FILE: &str = "./auth_store";
 
 fn get_from_json<'a, 'b>(val: &'a Value, key: &'b str) -> Result<&'a str, ConnectorError> {
     val[key].as_str().ok_or_else(|| {
@@ -35,10 +37,37 @@ pub struct AccessTokenDispenser<'a> {
 
 impl<'a> AccessTokenDispenser<'a> {
     pub fn new(app_config: &'a AppConfig) -> Self {
+        let cfg = Config::new(AUTH_CONFIG_FILE);
+        let access_token = Store::new(cfg)
+            .and_then(|store| store.bucket::<String, String>(Some("auth_config")))
+            .and_then(|bucket| bucket.get("auth_token"))
+            .unwrap_or(None);
         Self {
             app_config,
-            access_token: None,
+            access_token,
             refresh_token: None,
+        }
+    }
+
+    fn set_access_token(&mut self, access_token: &str) {
+        self.access_token = Some(access_token.to_owned());
+        let cfg = Config::new(AUTH_CONFIG_FILE);
+        if let Err(_) = Store::new(cfg)
+            .and_then(|store| store.bucket::<String, String>(Some("auth_config")))
+            .and_then(|bucket| bucket.set("auth_token", access_token))
+        {
+            println!("Could not store authorization token");
+        }
+    }
+
+    fn set_refresh_token(&mut self, refresh_token: &str) {
+        self.refresh_token = Some(refresh_token.to_owned());
+        let cfg = Config::new(AUTH_CONFIG_FILE);
+        if let Err(_) = Store::new(cfg)
+            .and_then(|store| store.bucket::<String, String>(Some("auth_config")))
+            .and_then(|bucket| bucket.set("refresh_token", refresh_token))
+        {
+            println!("Could not store refresh token");
         }
     }
 
@@ -124,8 +153,8 @@ impl<'a> AccessTokenDispenser<'a> {
         }
         let access_token = get_from_json(&json, "access_token")?;
         let refresh_token = get_from_json(&json, "refresh_token")?;
-        self.access_token = Some(access_token.to_owned());
-        self.refresh_token = Some(refresh_token.to_owned());
+        self.set_access_token(access_token);
+        self.set_refresh_token(refresh_token);
         Ok(())
     }
 
