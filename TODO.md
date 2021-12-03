@@ -17,6 +17,7 @@ Done:
 - [X] Test user management (with command access rights)
 - [X] Discord command (!discord; and maybe also timed repetition)
 - [X] Timed repetitions
+- [X] Simplify and fully automate the process for getting the access token
 
 Tests:
 - [ ] What do we do with pings when no events are received? They should still be answered!
@@ -32,7 +33,7 @@ New Feature:
 - [ ] Chat logs
 
 Setup:
-- [ ] Simplify and fully automate the process for getting the access token
+- [ ] Refresh access tokens with refresh tokens
 
 Something to think about:
 - [ ] Can display names really be only upper case versions of the user name? If not, what else should be considered?
