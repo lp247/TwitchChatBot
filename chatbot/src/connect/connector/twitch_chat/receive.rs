@@ -2,23 +2,32 @@ use crate::connect::error::ConnectorError;
 use crate::connect::{types::CommandType, Badge, ChatBotEvent, Command, TextMessage, UserInfo};
 use std::collections::{HashMap, HashSet};
 use std::net::TcpStream;
+use websocket::WebSocketError;
 use websocket::{receiver::Reader, OwnedMessage};
 
 pub fn receive(receiver: &mut Reader<TcpStream>) -> Result<Vec<ReceiveEvent>, ConnectorError> {
-    let owned_message = receiver
-        .recv_message()
-        .map_err(|err| ConnectorError::MessageReceiveFailed(format!("{:?}", err)))?;
     loop {
-        match owned_message {
-            OwnedMessage::Text(text) => {
-                println!("New websocket message: {}", text);
-                let events = text
-                    .lines()
-                    .filter_map(ReceiveEvent::parse_from_message)
-                    .collect();
-                return Ok(events);
-            }
-            _ => continue,
+        match receiver.recv_message() {
+            Err(WebSocketError::NoDataAvailable) => continue,
+            response => match response {
+                Ok(owned_message) => match owned_message {
+                    OwnedMessage::Text(text) => {
+                        println!("New websocket message: {}", text);
+                        let events = text
+                            .lines()
+                            .filter_map(ReceiveEvent::parse_from_message)
+                            .collect();
+                        return Ok(events);
+                    }
+                    _ => continue,
+                },
+                Err(err) => {
+                    return Err(ConnectorError::MessageReceiveFailed(format!(
+                        "Could not receive message: {:?}",
+                        err
+                    )))
+                }
+            },
         }
     }
 }
