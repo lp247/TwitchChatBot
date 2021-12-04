@@ -1,4 +1,6 @@
+use super::retry_manager::ExponentialRetryManager;
 use crate::{app_config::AppConfig, connect::error::ConnectorError};
+use futures_retry::FutureRetry;
 use kv::*;
 use reqwest::Response;
 use serde_json::{from_str, Value};
@@ -104,17 +106,15 @@ impl<'a> AccessTokenDispenser<'a> {
         }
         let client = reqwest::Client::new();
         let access_token = self.access_token.as_ref().unwrap();
-        let validation_response = client
-            .get(VALIDATION_URL)
-            .bearer_auth(access_token)
-            .send()
-            .await
-            .map_err(|err| {
-                ConnectorError::MessageReceiveFailed(format!(
-                    "Could not validate access token: {:?}",
-                    err
-                ))
-            })?;
+        let (validation_response, _) = FutureRetry::new(
+            || client.get(VALIDATION_URL).bearer_auth(access_token).send(),
+            ExponentialRetryManager::new("Could not validate access token", None, None),
+        )
+        .await
+        .map_err(|err| err.0)?;
+        // TODO: Don't check for status unequal to 200. There may be also
+        // responses with status 500+ indicating internal server errors. In
+        // this case the token may not be invalid.
         if validation_response.status() != 200 {
             let json = get_json_from_response(validation_response).await?;
             let message = get_from_json(&json, "message")?;
@@ -127,6 +127,9 @@ impl<'a> AccessTokenDispenser<'a> {
     }
 
     async fn renew(&mut self) -> Result<(), ConnectorError> {
+        // TODO: Check if there is already an access token saved and do a
+        // refresh with the refresh token if there is. Otherwise do a
+        // request via standard code flow.
         let code = self.retrieve_code()?;
         let uri = format!(
             "https://id.twitch.tv/oauth2/token?client_id={}&client_secret={}&code={}&grant_type=authorization_code&redirect_uri={}",
@@ -136,12 +139,12 @@ impl<'a> AccessTokenDispenser<'a> {
             REDIRECT_URI,
         );
         let client = reqwest::Client::new();
-        let response = client.post(uri).send().await.map_err(|err| {
-            ConnectorError::MessageReceiveFailed(format!(
-                "Failed to get access token renewal response: {:?}",
-                err
-            ))
-        })?;
+        let (response, _) = FutureRetry::new(
+            || client.post(&uri).send(),
+            ExponentialRetryManager::new("Could not renew access token", None, None),
+        )
+        .await
+        .map_err(|err| err.0)?;
         let status = response.status();
         let json = get_json_from_response(response).await?;
         if status != 200 {

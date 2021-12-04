@@ -18,6 +18,7 @@ Done:
 - [X] Discord command (!discord; and maybe also timed repetition)
 - [X] Timed repetitions
 - [X] Simplify and fully automate the process for getting the access token
+- [X] Retrying in connections (mainly in authentication)
 
 Tests:
 - [ ] What do we do with pings when no events are received? They should still be answered!
