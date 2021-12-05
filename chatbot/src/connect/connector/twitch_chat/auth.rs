@@ -129,9 +129,6 @@ async fn request_new_access_token(
     client_id: &str,
     client_secret: &str,
 ) -> Result<(String, String), ConnectorError> {
-    // TODO: Check if there is already an access token saved and do a
-    // refresh with the refresh token if there is. Otherwise do a
-    // request via standard code flow.
     let code = retrieve_code(client_id)?;
     let query_params: HashMap<&str, &str> = HashMap::from([
         ("client_id", client_id),
