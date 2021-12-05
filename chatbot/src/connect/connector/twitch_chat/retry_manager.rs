@@ -5,34 +5,26 @@ use std::time::Duration;
 pub struct ExponentialRetryManager {
     init_wait_time: u64,
     max_num_attempts: usize,
-    error_message: String,
 }
 
 impl ExponentialRetryManager {
-    pub fn new(
-        error_message: &str,
-        init_wait_time: Option<u64>,
-        max_num_attempts: Option<usize>,
-    ) -> Self {
+    pub fn new(init_wait_time: Option<u64>, max_num_attempts: Option<usize>) -> Self {
         Self {
             init_wait_time: init_wait_time.unwrap_or(1),
             max_num_attempts: max_num_attempts.unwrap_or(3),
-            error_message: error_message.to_owned(),
         }
     }
 }
 
-impl ErrorHandler<reqwest::Error> for ExponentialRetryManager {
+impl ErrorHandler<ConnectorError> for ExponentialRetryManager {
     type OutError = ConnectorError;
 
-    fn handle(&mut self, attempt: usize, _: reqwest::Error) -> RetryPolicy<Self::OutError> {
+    fn handle(&mut self, attempt: usize, err: ConnectorError) -> RetryPolicy<Self::OutError> {
         if attempt > self.max_num_attempts {
-            RetryPolicy::ForwardError(ConnectorError::MessageReceiveFailed(format!(
-                "{} after {} retries",
-                self.error_message, self.max_num_attempts
-            )))
+            RetryPolicy::ForwardError(err)
         } else {
             // attempt should never be so big that it does not fit into u32
+            // (try_into().unwrap())
             RetryPolicy::WaitRetry(Duration::from_secs(
                 self.init_wait_time * 2_u64.pow(attempt.try_into().unwrap()),
             ))

@@ -30,11 +30,13 @@ impl<'a> TwitchChatConnector<'a> {
             .connect_insecure()
             .unwrap();
         let (receiver, mut sender) = chat_client.split().unwrap();
-        let mut access_token_dispenser = AccessTokenDispenser::new(app_config);
+        let mut access_token_dispenser = AccessTokenDispenser::new(app_config)
+            .await
+            .expect("Could not instantiate Twitch connector");
         let access_token: String = access_token_dispenser
             .get()
             .await
-            .expect("Could not get access token")
+            .expect("Could not get valid access token")
             .to_owned();
         send_multiple(
             &mut sender,
