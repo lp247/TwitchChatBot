@@ -270,10 +270,12 @@ mod tests {
     fn creating_url_with_query_params() {
         let query_params: HashMap<&str, &str> =
             HashMap::from([("param1", "firstvalue"), ("param2", "secondvalue")]);
-        let expected_uri = "https://testserver.com?param1=firstvalue&param2=secondvalue";
-        assert_eq!(
-            create_url_with_query_params("https://testserver.com", &query_params),
-            expected_uri
-        );
+        let base = "https://testserver.com";
+        // https://testserver.com?param1=firstvalue&param2=secondvalue
+        let generated_uri = create_url_with_query_params(base, &query_params);
+        assert!(generated_uri.starts_with(base));
+        assert!(generated_uri.contains("param1=firstvalue"));
+        assert!(generated_uri.contains("param2=secondvalue"));
+        assert_eq!(generated_uri.len(), base.len() + 37);
     }
 }
