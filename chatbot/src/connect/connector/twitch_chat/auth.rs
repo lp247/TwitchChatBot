@@ -10,6 +10,9 @@ use serde_json::{from_str, Value};
 const VALIDATION_URL: &str = "https://id.twitch.tv/oauth2/validate";
 const REDIRECT_URI: &str = "https://localhost:3030";
 const AUTH_CONFIG_FILE: &str = "./auth_store";
+const AUTH_BUCKET_NAME: &str = "auth_config";
+const ACCESS_TOKEN_PERSISTENCE_KEY: &str = "access_token";
+const REFRESH_TOKEN_PERSISTENCE_KEY: &str = "refresh_token";
 
 async fn get_json_from_response(response: Response) -> Result<Value, ConnectorError> {
     let response_text = response.text().await?;
@@ -87,7 +90,7 @@ fn retrieve_code(client_id: &str) -> Result<String, ConnectorError> {
 fn load_saved_access_token() -> Result<(String, String), ConnectorError> {
     let cfg = Config::new(AUTH_CONFIG_FILE);
     let store = Store::new(cfg)?;
-    let bucket = store.bucket::<String, String>(Some("auth_config"))?;
+    let bucket = store.bucket::<String, String>(Some(AUTH_BUCKET_NAME))?;
     let access_token = bucket.get("access_token")?;
     let refresh_token = bucket.get("refresh_token")?;
     if access_token.is_some() && refresh_token.is_some() {
@@ -187,22 +190,18 @@ async fn refresh_access_token_retrying(
     .map_err(|err| err.0)
 }
 
-fn store_value(key: &str, value: &str) {
+fn store_tokens(access_token: &str, refresh_token: &str) {
     let cfg = Config::new(AUTH_CONFIG_FILE);
     if let Err(_) = Store::new(cfg)
-        .and_then(|store| store.bucket::<String, String>(Some("auth_config")))
-        .and_then(|bucket| bucket.set(key, value))
+        .and_then(|store| store.bucket::<String, String>(Some(AUTH_BUCKET_NAME)))
+        .and_then(|bucket| {
+            let access_token_saving = bucket.set(ACCESS_TOKEN_PERSISTENCE_KEY, access_token);
+            let refresh_token_saving = bucket.set(REFRESH_TOKEN_PERSISTENCE_KEY, refresh_token);
+            access_token_saving.and(refresh_token_saving)
+        })
     {
-        println!("Could not store value in key {}", key);
+        println!("Could not store access token or refresh token");
     }
-}
-
-fn store_access_token(access_token: &str) {
-    store_value("auth_token", access_token);
-}
-
-fn store_refresh_token(refresh_token: &str) {
-    store_value("refresh_token", refresh_token);
 }
 
 pub struct AccessTokenDispenser<'a> {
@@ -223,8 +222,7 @@ impl<'a> AccessTokenDispenser<'a> {
                     app_config.twitch_client_secret(),
                 )
                 .await?;
-                store_access_token(&access_token);
-                store_refresh_token(&refresh_token);
+                store_tokens(&access_token, &refresh_token);
                 (access_token, refresh_token)
             }
         };
@@ -248,10 +246,9 @@ impl<'a> AccessTokenDispenser<'a> {
                 .await?
             }
         };
+        store_tokens(&access_token, &refresh_token);
         self.access_token = access_token;
         self.refresh_token = refresh_token;
-        store_access_token(&self.access_token);
-        store_refresh_token(&self.refresh_token);
         Ok(self.access_token.as_ref())
     }
 }

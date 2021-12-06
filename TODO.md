@@ -19,6 +19,7 @@ Done:
 - [X] Timed repetitions
 - [X] Simplify and fully automate the process for getting the access token
 - [X] Retrying in connections (mainly in authentication)
+- [X] Refresh access tokens with refresh tokens
 
 Tests:
 - [ ] What do we do with pings when no events are received? They should still be answered!
@@ -34,7 +35,6 @@ New Feature:
 - [ ] Chat logs
 
 Setup:
-- [ ] Refresh access tokens with refresh tokens
 
 Something to think about:
 - [ ] Can display names really be only upper case versions of the user name? If not, what else should be considered?
