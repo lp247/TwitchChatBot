@@ -44,9 +44,10 @@ async fn access_token_is_valid(access_token: &str) -> Result<bool, ConnectorErro
     match validation_response.status().as_u16() {
         401 => Ok(false),
         200 => Ok(true),
-        _ => Err(ConnectorError::ExternalServerError(
-            "Access token validation server sent bad response".to_owned(),
-        )),
+        status_code => Err(ConnectorError::ExternalServerError(format!(
+            "Access token validation server sent bad response with http status code {}",
+            status_code
+        ))),
     }
 }
 
@@ -121,9 +122,18 @@ async fn request_access_token(uri: &str) -> Result<(String, String), ConnectorEr
                 ))
             }
         }
-        _ => Err(ConnectorError::ExternalServerError(
-            "Access token validation server sent bad response".to_owned(),
-        )),
+        403 => {
+            let json = get_json_from_response(response).await?;
+            let error_message = json["message"].as_str();
+            Err(ConnectorError::HTTP403(
+                error_message.unwrap_or_default().to_owned(),
+            ))
+        }
+        404 => Err(ConnectorError::HTTP404),
+        status_code => Err(ConnectorError::ExternalServerError(format!(
+            "Access token request server sent bad response with http status code {}",
+            status_code
+        ))),
     }
 }
 
@@ -132,6 +142,7 @@ async fn request_new_access_token(
     client_id: &str,
     client_secret: &str,
 ) -> Result<(String, String), ConnectorError> {
+    // TODO: don't include the code retrieval in retrying
     let code = retrieve_code(client_id)?;
     let query_params: HashMap<&str, &str> = HashMap::from([
         ("client_id", client_id),
@@ -169,10 +180,7 @@ async fn refresh_access_token(
         ("refresh_token", &refresh_token),
         ("grant_type", "refresh_token"),
     ]);
-    let uri = create_url_with_query_params(
-        "https://id.twitch.tv/oauth2/token--data-urlencode",
-        &query_params,
-    );
+    let uri = create_url_with_query_params("https://id.twitch.tv/oauth2/token", &query_params);
     request_access_token(&uri).await
 }
 
