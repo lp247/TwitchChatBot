@@ -1,36 +1,5 @@
-use crate::connect::error::ConnectorError;
 use crate::connect::{types::CommandType, Badge, ChatBotEvent, Command, TextMessage, UserInfo};
 use std::collections::{HashMap, HashSet};
-use std::net::TcpStream;
-use websocket::WebSocketError;
-use websocket::{receiver::Reader, OwnedMessage};
-
-pub fn receive(receiver: &mut Reader<TcpStream>) -> Result<Vec<ReceiveEvent>, ConnectorError> {
-    loop {
-        match receiver.recv_message() {
-            Err(WebSocketError::NoDataAvailable) => continue,
-            response => match response {
-                Ok(owned_message) => match owned_message {
-                    OwnedMessage::Text(text) => {
-                        println!("New websocket message: {}", text);
-                        let events = text
-                            .lines()
-                            .filter_map(ReceiveEvent::parse_from_message)
-                            .collect();
-                        return Ok(events);
-                    }
-                    _ => continue,
-                },
-                Err(err) => {
-                    return Err(ConnectorError::MessageReceiveFailed(format!(
-                        "Could not receive message: {:?}",
-                        err
-                    )))
-                }
-            },
-        }
-    }
-}
 
 #[derive(Debug, PartialEq)]
 pub enum ConnectorEvent {
@@ -88,7 +57,7 @@ impl ReceiveEvent {
         let mut marker = 0;
         let mut tags_map = HashMap::<String, String>::new();
 
-        if message.starts_with("PING:") {
+        if message.starts_with("PING") {
             return Some(ReceiveEvent::ConnectorEvent(ConnectorEvent::Ping));
         }
 
@@ -298,6 +267,13 @@ mod tests {
                 badges: HashSet::default(),
             },
         })));
+        assert_eq!(ReceiveEvent::parse_from_message(message), expected);
+    }
+
+    #[test]
+    fn parsing_ping() {
+        let message = "PING :tmi.twitch.tv";
+        let expected = Some(ReceiveEvent::ConnectorEvent(ConnectorEvent::Ping));
         assert_eq!(ReceiveEvent::parse_from_message(message), expected);
     }
 

@@ -21,7 +21,9 @@ impl ErrorHandler<ConnectorError> for ExponentialRetryManager {
 
     fn handle(&mut self, attempt: usize, err: ConnectorError) -> RetryPolicy<Self::OutError> {
         match err {
-            ConnectorError::HTTP404 => RetryPolicy::ForwardError(err),
+            ConnectorError::HTTP404 | ConnectorError::HTTP403(_) | ConnectorError::HTTP400(_) => {
+                RetryPolicy::ForwardError(err)
+            }
             _ => {
                 if attempt > self.max_num_attempts {
                     RetryPolicy::ForwardError(err)

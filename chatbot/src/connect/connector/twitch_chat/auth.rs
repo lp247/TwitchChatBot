@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use super::retry_manager::ExponentialRetryManager;
 use crate::{app_config::AppConfig, connect::error::ConnectorError};
+use async_trait::async_trait;
+use futures::future::TryFutureExt;
 use futures_retry::FutureRetry;
 use kv::*;
-use reqwest::Response;
 use serde_json::{from_str, Value};
 
 const VALIDATION_URL: &str = "https://id.twitch.tv/oauth2/validate";
@@ -14,8 +15,7 @@ const AUTH_BUCKET_NAME: &str = "auth_config";
 const ACCESS_TOKEN_PERSISTENCE_KEY: &str = "access_token";
 const REFRESH_TOKEN_PERSISTENCE_KEY: &str = "refresh_token";
 
-async fn get_json_from_response(response: Response) -> Result<Value, ConnectorError> {
-    let response_text = response.text().await?;
+fn get_json_from_response_text(response_text: String) -> Result<Value, ConnectorError> {
     let val: Value = from_str(&response_text)?;
     Ok(val)
 }
@@ -35,13 +35,17 @@ fn create_url_with_query_params(base: &str, query_params: &HashMap<&str, &str>) 
 }
 
 async fn access_token_is_valid(access_token: &str) -> Result<bool, ConnectorError> {
+    log::debug!("Checking validity of access token");
     let client = reqwest::Client::new();
     let validation_response = client
         .get(VALIDATION_URL)
         .bearer_auth(access_token)
         .send()
         .await?;
-    match validation_response.status().as_u16() {
+    let status_code = validation_response.status();
+    let response_text = validation_response.text().await?;
+    log::debug!("Got validity check server response {}", &response_text);
+    match status_code.as_u16() {
         401 => Ok(false),
         200 => Ok(true),
         status_code => Err(ConnectorError::ExternalServerError(format!(
@@ -106,9 +110,12 @@ fn load_saved_access_token() -> Result<(String, String), ConnectorError> {
 async fn request_access_token(uri: &str) -> Result<(String, String), ConnectorError> {
     let client = reqwest::Client::new();
     let response = client.post(uri).send().await?;
-    match response.status().as_u16() {
+    let status_code = response.status();
+    let response_text = response.text().await?;
+    log::debug!("Got token request server response {}", &response_text);
+    match status_code.as_u16() {
         200 => {
-            let json = get_json_from_response(response).await?;
+            let json = get_json_from_response_text(response_text)?;
             let access_token = json["access_token"].as_str();
             let refresh_token = json["refresh_token"].as_str();
             if access_token.is_some() && refresh_token.is_some() {
@@ -122,8 +129,16 @@ async fn request_access_token(uri: &str) -> Result<(String, String), ConnectorEr
                 ))
             }
         }
+        // Invalid refresh token
+        400 => {
+            let json = get_json_from_response_text(response_text)?;
+            let error_message = json["message"].as_str();
+            Err(ConnectorError::HTTP400(
+                error_message.unwrap_or_default().to_owned(),
+            ))
+        }
         403 => {
-            let json = get_json_from_response(response).await?;
+            let json = get_json_from_response_text(response_text)?;
             let error_message = json["message"].as_str();
             Err(ConnectorError::HTTP403(
                 error_message.unwrap_or_default().to_owned(),
@@ -174,6 +189,7 @@ async fn refresh_access_token(
     client_secret: &str,
     refresh_token: &str,
 ) -> Result<(String, String), ConnectorError> {
+    log::debug!("Refreshing access token");
     let query_params: HashMap<&str, &str> = HashMap::from([
         ("client_id", client_id),
         ("client_secret", client_secret),
@@ -208,20 +224,25 @@ fn store_tokens(access_token: &str, refresh_token: &str) {
             access_token_saving.and(refresh_token_saving)
         })
     {
-        println!("Could not store access token or refresh token");
+        log::warn!("Could not store access token or refresh token");
     }
 }
 
-pub struct AccessTokenDispenser<'a> {
+#[async_trait]
+pub trait AccessTokenDispenser {
+    async fn get(&mut self) -> Result<&str, ConnectorError>;
+}
+
+pub struct TwitchAccessTokenDispenser<'a> {
     app_config: &'a AppConfig,
     access_token: String,
     refresh_token: String,
 }
 
-impl<'a> AccessTokenDispenser<'a> {
+impl<'a> TwitchAccessTokenDispenser<'a> {
     pub async fn new(
         app_config: &'a AppConfig,
-    ) -> Result<AccessTokenDispenser<'a>, ConnectorError> {
+    ) -> Result<TwitchAccessTokenDispenser<'a>, ConnectorError> {
         let (access_token, refresh_token) = match load_saved_access_token() {
             Ok(val) => val,
             Err(_) => {
@@ -240,17 +261,32 @@ impl<'a> AccessTokenDispenser<'a> {
             refresh_token,
         })
     }
+}
 
-    pub async fn get(&mut self) -> Result<&str, ConnectorError> {
+#[async_trait]
+impl<'a> AccessTokenDispenser for TwitchAccessTokenDispenser<'a> {
+    async fn get(&mut self) -> Result<&str, ConnectorError> {
+        log::debug!("Requesting access token");
         let access_token_valid = access_token_is_valid_retrying(&self.access_token).await?;
         let (access_token, refresh_token) = match access_token_valid {
-            true => (self.access_token.to_owned(), self.refresh_token.to_owned()),
+            true => {
+                log::debug!("Access token is valid");
+                (self.access_token.to_owned(), self.refresh_token.to_owned())
+            }
             false => {
+                log::debug!("Access token is invalid");
                 refresh_access_token_retrying(
                     &self.app_config.twitch_client_id(),
                     &self.app_config.twitch_client_secret(),
                     &self.refresh_token,
                 )
+                .or_else(|_| async {
+                    request_new_access_token_retrying(
+                        self.app_config.twitch_client_id(),
+                        self.app_config.twitch_client_secret(),
+                    )
+                    .await
+                })
                 .await?
             }
         };

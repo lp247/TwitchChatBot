@@ -20,12 +20,13 @@ Done:
 - [X] Simplify and fully automate the process for getting the access token
 - [X] Retrying in connections (mainly in authentication)
 - [X] Refresh access tokens with refresh tokens
+- [X] What do we do with pings when no events are received? They should still be answered!
 
 Tests:
-- [ ] What do we do with pings when no events are received? They should still be answered!
 
 New Feature:
 - [ ] Persistence (file or sqlite with rusqlite)
+- [ ] LOGGING (flexi_logger)
 - [ ] Need a way to keep track of names of new commands and repeatings => create CLI
 - [ ] Respect chat message rate limits
 - [ ] Spam protection (machine learning?)

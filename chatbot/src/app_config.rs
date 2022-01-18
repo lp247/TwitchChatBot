@@ -4,10 +4,10 @@ use thiserror::Error;
 
 #[derive(Debug)]
 pub struct AppConfig {
-    channel_name: String,
-    bot_user_name: String,
-    twitch_client_id: String,
-    twitch_client_secret: String,
+    pub channel_name: String,
+    pub bot_user_name: String,
+    pub twitch_client_id: String,
+    pub twitch_client_secret: String,
 }
 
 #[derive(Debug, Error)]

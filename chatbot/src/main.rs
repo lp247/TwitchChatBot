@@ -1,64 +1,27 @@
-use crate::{
-    connect::ChatBotEvent,
-    core::{
-        ChatBot,
-        ChatBotCommand::{self, *},
-    },
-};
+use crate::{connect::ChatBotEvent, core::ChatBot};
 use app_config::AppConfig;
-use connect::TwitchChatConnector;
-use std::sync::mpsc;
-use std::{error::Error, sync::mpsc::Sender};
-use thread_timer::ThreadTimer;
-
+use connect::connect_to_twitch_chat;
+use flexi_logger::Logger;
+use futures::channel::mpsc::{self};
+use futures::future::select;
+use futures::pin_mut;
+use std::error::Error;
 pub mod app_config;
 mod connect;
 mod core;
 
-fn process_command(
-    command: ChatBotCommand,
-    connector: &TwitchChatConnector,
-    bot_event_sender: Sender<ChatBotEvent>,
-) -> Result<(), Box<dyn Error>> {
-    match command {
-        SendMessage(message) => {
-            println!("Sending this message : {}", &message);
-            connector.send_message(&message)?;
-        }
-        LogTextMessage(message) => println!("{}", message),
-        TimedCallback { duration, event } => {
-            // This timer spawns a thread per invokation, that's bad
-            // More serious timers were not a good fit (afaik)
-            // It would be a nice exercise to implement such timer with
-            // one or 2 threads for all timers
-            let timer = ThreadTimer::new();
-            let _ = timer.start(duration, move || {
-                let _ = bot_event_sender.send(event);
-            });
-        }
-        MultipleCommands(new_commands) => {
-            for command in new_commands {
-                process_command(command, connector, bot_event_sender.clone())?;
-            }
-        }
-    }
-    Ok(())
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    Logger::try_with_str("debug")?.start()?;
     let app_config = AppConfig::new()?;
 
-    let (tx, rx) = mpsc::channel();
-
-    let connector = TwitchChatConnector::new(&app_config, tx.clone()).await;
-    connector.send_message("Hello, world!")?;
+    let (inc_tx, inc_rx) = mpsc::unbounded::<ChatBotEvent>();
+    let (out_tx, out_rx) = mpsc::unbounded::<String>();
 
     let mut chat_bot = ChatBot::new();
-    while let Ok(message) = rx.recv() {
-        if let Some(bot_command) = chat_bot.handle_event(message) {
-            process_command(bot_command, &connector, tx.clone())?;
-        }
-    }
+    let chat_bot_run = chat_bot.run(inc_rx, out_tx);
+    let twitch_connection = connect_to_twitch_chat(out_rx, inc_tx, &app_config);
+    pin_mut!(twitch_connection, chat_bot_run);
+    select(twitch_connection, chat_bot_run).await;
     Ok(())
 }
