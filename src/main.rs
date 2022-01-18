@@ -12,7 +12,7 @@ mod core;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    Logger::try_with_str("debug")?.start()?;
+    Logger::try_with_str("info")?.start()?;
     let app_config = AppConfig::new()?;
 
     let (inc_tx, inc_rx) = mpsc::unbounded::<ChatBotEvent>();
