@@ -13,3 +13,6 @@ certificates/
 .env
 auth_store
 .vscode
+dynamic_commands.json
+repeating_commands.json
+log*.txt

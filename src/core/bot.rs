@@ -5,9 +5,10 @@ use futures::{
 };
 use std::{
     collections::{HashMap, HashSet},
-    time::Duration,
+    time::Duration, fs::{File, OpenOptions},
 };
 use uuid::Uuid;
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug)]
 pub struct ChatBot {
@@ -16,12 +17,12 @@ pub struct ChatBot {
     repeating_messages: HashMap<String, RepeatingMessage>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct RepeatingMessage {
     name: String,
     text: String,
     interval: Duration,
-    timer_id: Uuid,
+    timer_id: String,
 }
 
 const HELP_MESSAGE: &str =
@@ -40,10 +41,12 @@ const DISCORD_MESSAGE: &str =
 
 impl ChatBot {
     pub fn new() -> Self {
+        let dc_file = OpenOptions::new().read(true).write(true).create(true).open("dynamic_commands.json").expect("Could not open dynamic_commands.json");
+        let rc_file = OpenOptions::new().read(true).write(true).create(true).open("repeating_commands.json").expect("Could not open repeating_commands.json");
         Self {
             chatters: HashSet::default(),
-            dynamic_commands: HashMap::default(),
-            repeating_messages: HashMap::default(),
+            dynamic_commands: serde_json::from_reader(dc_file).or::<HashMap<String, String>>(Ok(HashMap::default())).unwrap(),
+            repeating_messages: serde_json::from_reader(rc_file).or::<HashMap<String, RepeatingMessage>>(Ok(HashMap::default())).unwrap(),
         }
     }
 
@@ -79,6 +82,7 @@ impl ChatBot {
                         let new_command_message = command.options[1..].join(" ");
                         self.dynamic_commands
                             .insert(new_command_name.to_owned(), new_command_message);
+                        File::create("dynamic_commands.json").map(|file| serde_json::to_writer(file, &self.dynamic_commands));
                         Some(NEW_COMMAND_SUCCESSFUL_MESSAGE.to_owned())
                     }
                 } else {
@@ -92,6 +96,7 @@ impl ChatBot {
                     } else {
                         let command_name = &command.options[0];
                         self.dynamic_commands.remove(command_name);
+                        File::create("dynamic_commands.json").map(|file| serde_json::to_writer(file, &self.dynamic_commands));
                         Some(REMOVE_COMMAND_SUCCESSFUL_MESSAGE.to_owned())
                     }
                 } else {
@@ -107,7 +112,7 @@ impl ChatBot {
                         let message_name = &command.options[0];
                         if let Ok(seconds) = &command.options[1].parse() {
                             let interval = Duration::from_secs(*seconds);
-                            let id = Uuid::new_v4();
+                            let id = Uuid::new_v4().to_string();
                             self.repeating_messages.insert(
                                 message_name.to_string(),
                                 RepeatingMessage {
@@ -117,6 +122,7 @@ impl ChatBot {
                                     timer_id: id,
                                 },
                             );
+                            File::create("repeating_commands.json").map(|file| serde_json::to_writer(file, &self.repeating_messages));
                             // TODO: set the correct message here
                             Some(NEW_COMMAND_SUCCESSFUL_MESSAGE.to_owned())
                         } else {
@@ -136,6 +142,7 @@ impl ChatBot {
                     } else {
                         let command_name = &command.options[0];
                         self.repeating_messages.remove(command_name);
+                        File::create("repeating_commands.json").map(|file| serde_json::to_writer(file, &self.repeating_messages));
                         // TODO: set the correct message here
                         Some(REMOVE_COMMAND_SUCCESSFUL_MESSAGE.to_owned())
                     }

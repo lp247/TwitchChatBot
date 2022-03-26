@@ -1,7 +1,7 @@
 use crate::{connect::ChatBotEvent, core::ChatBot};
 use app_config::AppConfig;
 use connect::connect_to_twitch_chat;
-use flexi_logger::Logger;
+use flexi_logger::{Logger, FileSpec};
 use futures::channel::mpsc::{self};
 use futures::future::select;
 use futures::pin_mut;
@@ -12,7 +12,7 @@ mod core;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    Logger::try_with_str("info")?.start()?;
+    Logger::try_with_str("info")?.log_to_file(FileSpec::default().basename("log").suffix("txt")).start()?;
     let app_config = AppConfig::new()?;
 
     let (inc_tx, inc_rx) = mpsc::unbounded::<ChatBotEvent>();
